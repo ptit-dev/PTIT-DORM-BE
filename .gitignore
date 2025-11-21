@@ -1,0 +1,3 @@
+#  config
+# Ignore local configuration files
+config/config.yml

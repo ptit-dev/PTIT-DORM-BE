@@ -1,0 +1,204 @@
+definitions:
+  models.HealthResponse:
+    properties:
+      message:
+        type: string
+      status:
+        type: string
+      time:
+        type: string
+    type: object
+  models.LoginRequest:
+    properties:
+      password:
+        type: string
+      username:
+        type: string
+    required:
+    - password
+    - username
+    type: object
+  models.LoginResponse:
+    properties:
+      access_token:
+        type: string
+      refresh_token:
+        type: string
+      user:
+        $ref: '#/definitions/models.LoginUserInfo'
+    type: object
+  models.LoginUserInfo:
+    properties:
+      avatar:
+        type: string
+      display_name:
+        type: string
+      email:
+        type: string
+      user_id:
+        type: string
+      username:
+        type: string
+    type: object
+  models.LogoutRequest:
+    properties:
+      refresh_token:
+        type: string
+    required:
+    - refresh_token
+    type: object
+  models.RefreshRequest:
+    properties:
+      refresh_token:
+        type: string
+    required:
+    - refresh_token
+    type: object
+  models.RefreshResponse:
+    properties:
+      access_token:
+        type: string
+      refresh_token:
+        type: string
+      user_id:
+        type: string
+    type: object
+  models.Response:
+    properties:
+      code:
+        type: integer
+      data: {}
+      message:
+        type: string
+    type: object
+host: localhost:8888
+info:
+  contact:
+    email: support@example.com
+    name: API Support
+  description: API for managing dormitory services
+  license:
+    name: Apache 2.0
+    url: http://www.apache.org/licenses/LICENSE-2.0.html
+  termsOfService: http://swagger.io/terms/
+  title: PTIT Dorm API
+  version: "1.0"
+paths:
+  /Login:
+    post:
+      consumes:
+      - application/json
+      description: Exchange Login code for access/refresh tokens, fetch user info,
+        and store token in Redis whitelist. Returns JWT tokens and user info.
+      parameters:
+      - description: Login code and redirect URI
+        in: body
+        name: LoginRequest
+        required: true
+        schema:
+          $ref: '#/definitions/models.LoginRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Access and Refresh token (JWT) and user info
+          schema:
+            $ref: '#/definitions/models.LoginResponse'
+        "400":
+          description: Missing code or invalid request
+          schema:
+            $ref: '#/definitions/models.Response'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/models.Response'
+        "502":
+          description: Failed to exchange code or get user info
+          schema:
+            $ref: '#/definitions/models.Response'
+      summary: Login login
+      tags:
+      - Auth
+  /health:
+    get:
+      consumes:
+      - application/json
+      description: Check if the service is running
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.HealthResponse'
+      summary: Health check
+      tags:
+      - health
+  /logout:
+    post:
+      consumes:
+      - application/json
+      description: 'Invalidate the provided refresh token and remove it from Redis
+        whitelist. Always returns HTTP 200 with different message responses:'
+      parameters:
+      - description: Refresh token to revoke
+        in: body
+        name: LogoutRequest
+        required: true
+        schema:
+          $ref: '#/definitions/models.LogoutRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Logout status message (see Description for possible values)
+          schema:
+            $ref: '#/definitions/models.Response'
+      summary: Logout and revoke refresh token
+      tags:
+      - Auth
+  /refresh:
+    post:
+      consumes:
+      - application/json
+      description: Validate refresh token, rotate token ID, issue new access/refresh
+        tokens, and update Redis whitelist. Returns new JWT tokens.
+      parameters:
+      - description: Refresh token to validate
+        in: body
+        name: RefreshRequest
+        required: true
+        schema:
+          $ref: '#/definitions/models.RefreshRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: New JWT tokens
+          schema:
+            $ref: '#/definitions/models.RefreshResponse'
+        "400":
+          description: Missing or invalid refresh token
+          schema:
+            $ref: '#/definitions/models.Response'
+        "401":
+          description: Unauthorized or token not found
+          schema:
+            $ref: '#/definitions/models.Response'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/models.Response'
+      summary: Refresh access token
+      tags:
+      - Auth
+schemes:
+- http
+- https
+securityDefinitions:
+  BearerAuth:
+    description: Type "Bearer" followed by a space and JWT token.
+    in: header
+    name: Authorization
+    type: apiKey
+swagger: "2.0"
