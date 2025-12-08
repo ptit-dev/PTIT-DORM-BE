@@ -4,6 +4,8 @@ import (
 	"Backend_Dorm_PTIT/models"
 	"context"
 	"database/sql"
+
+	"github.com/google/uuid"
 )
 
 type DormApplicationRepository struct {
@@ -130,5 +132,15 @@ func (r *DormApplicationRepository) CreateContract(ctx context.Context, contract
 		contract.UpdatedAt,
 		contract.Note,
 	)
+	return err
+}
+
+// Thêm người bảo lãnh (phụ huynh) cho sinh viên, type = 'Bố', các trường còn lại null nếu không có
+func (r *DormApplicationRepository) AddGuardianToStudent(ctx context.Context, studentID string, guardianName string, guardianPhone string) error {
+	if guardianName == "" || guardianPhone == "" {
+		return nil // Không có thông tin thì bỏ qua
+	}
+	query := `INSERT INTO parents (id, student_id, type, fullname, phone, dob, address) VALUES ($1, $2, $3, $4, $5, NULL, NULL)`
+	_, err := r.DB.ExecContext(ctx, query, uuid.New().String(), studentID, "Bố", guardianName, guardianPhone)
 	return err
 }

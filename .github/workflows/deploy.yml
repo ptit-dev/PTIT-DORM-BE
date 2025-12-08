@@ -1,0 +1,83 @@
+name: Build Go EXE on GitHub, Deploy to Self-Hosted
+
+on:
+  push:
+    branches: ["main"]
+  workflow_dispatch:
+
+env:
+  PROD_DIR: 'C:\Users\trong.ngovan\My Documents\MyProject\BE_DORM_PTIT'
+  SERVICE_NAME: 'PTITDormService'
+
+jobs:
+  build:
+    name: Build EXE with Go
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: '1.25'
+
+      - name: Build EXE (Go)
+        run: go build -o ptit_dorm.exe main.go
+
+      - name: Upload ptit_dorm.exe
+        uses: actions/upload-artifact@v4
+        with:
+          name: ptit_dorm-exe
+          path: ptit_dorm.exe
+
+  deploy:
+    name: Deploy to Windows Self-Hosted Runner
+    runs-on: [self-hosted, Windows, X64]
+    needs: build
+
+    steps:
+      - name: Download artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: ptit_dorm-exe
+          path: artifact
+
+      - name: Deploy ptit_dorm.exe
+        shell: powershell
+        env:
+          PROD_DIR: ${{ env.PROD_DIR }}
+          SERVICE_NAME: ${{ env.SERVICE_NAME }}
+        run: |
+          $prod = $env:PROD_DIR
+          $svc  = $env:SERVICE_NAME
+          $exe  = Join-Path $PWD "artifact\ptit_dorm.exe"
+          $exeName = "ptit_dorm.exe"
+          if (Get-Service -Name $svc -ErrorAction SilentlyContinue) {
+            Write-Host "Killing $svc service"
+            taskkill /F /FI "SERVICES eq $svc"
+            Start-Sleep -Seconds 1
+          }
+          if (tasklist | findstr /I $exeName) {
+            Write-Host "Killing $exeName process..."
+            taskkill /IM $exeName /F
+            Start-Sleep -Seconds 1
+          }
+
+          Write-Host "Copying ptit_dorm.exe to $prod"
+          if (-not (Test-Path $prod)) {
+            New-Item -ItemType Directory -Path $prod | Out-Null
+          }
+          Copy-Item -Path $exe -Destination "$prod\ptit_dorm.exe" -Force
+          Write-Host "Starting service..."
+          if (Get-Service -Name $svc -ErrorAction SilentlyContinue) {
+            Start-Service -Name $svc
+          } else {
+            Write-Host "Service $svc not found - create it with NSSM first."
+          }
+
+      - name: Cleanup Artifact
+        if: always()
+        shell: powershell
+        run: Remove-Item -Path ".\artifact" -Recurse -Force

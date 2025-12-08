@@ -234,12 +234,15 @@ func (h *DormApplicationHandler) UpdateDormApplicationStatus(c *gin.Context) {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to assign student role", "details": err.Error()})
 			return
 		}
-		// 4. Tạo student
+		// 4.1. Tạo student
 		err = h.Repo.CreateStudentFromApplication(context.Background(), app, userID)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to create student", "details": err.Error()})
 			return
 		}
+		// 4.2 Thêm người bảo lãnh (Bố) cho sinh viên nếu có thông tin
+		_ = h.Repo.AddGuardianToStudent(context.Background(), userID, app.GuardianName, app.GuardianPhone)
+
 		// 5. Tạo hợp đồng tạm thời với đầy đủ trường hợp đồng
 		now := time.Now()
 		startDate := now

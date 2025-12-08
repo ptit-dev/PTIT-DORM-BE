@@ -22,3 +22,8 @@ func HashPassword(password string) (string, error) {
 	hash, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
 	return string(hash), err
 }
+
+// ComparePassword so sánh hash và plain password
+func ComparePassword(hash string, password string) error {
+	return bcrypt.CompareHashAndPassword([]byte(hash), []byte(password))
+}

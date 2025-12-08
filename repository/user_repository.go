@@ -123,7 +123,6 @@ func (r *UserRepository) GetUserInfo(ctx context.Context, username string) (*mod
 	return &userInfo, nil
 }
 
-
 func (r *UserRepository) GetStudentProfileByUserID(ctx context.Context, userID string) (*models.ProfileStudentResponse, error) {
 	query := `
 	SELECT u.email, u.username,
@@ -133,7 +132,7 @@ func (r *UserRepository) GetStudentProfileByUserID(ctx context.Context, userID s
 	WHERE u.id = $1
 	`
 	row := r.db.QueryRowContext(ctx, query, userID)
-    var Prf models.ProfileStudentResponse;
+	var Prf models.ProfileStudentResponse
 
 	if err := row.Scan(
 		&Prf.Email, &Prf.Username,
@@ -141,7 +140,6 @@ func (r *UserRepository) GetStudentProfileByUserID(ctx context.Context, userID s
 	); err != nil {
 		return nil, err
 	}
-
 
 	parentQuery := `SELECT id, student_id, type, fullname, phone, dob, address FROM parents WHERE student_id = $1`
 	parentRows, err := r.db.QueryContext(ctx, parentQuery, Prf.Student.ID)
@@ -160,13 +158,12 @@ func (r *UserRepository) GetStudentProfileByUserID(ctx context.Context, userID s
 	parentRows.Close()
 
 	return &models.ProfileStudentResponse{
-		Email:   Prf.Email,
+		Email:    Prf.Email,
 		Username: Prf.Username,
-		Student: Prf.Student,
-		Parents: parents,
+		Student:  Prf.Student,
+		Parents:  parents,
 	}, nil
 }
-
 
 func (r *UserRepository) GetManagerProfileByUserID(ctx context.Context, userID string) (*models.ProfileManagerResponse, error) {
 	query := `
@@ -177,7 +174,7 @@ func (r *UserRepository) GetManagerProfileByUserID(ctx context.Context, userID s
 	WHERE u.id = $1
 	`
 	row := r.db.QueryRowContext(ctx, query, userID)
-	var Prf models.ProfileManagerResponse;
+	var Prf models.ProfileManagerResponse
 
 	if err := row.Scan(
 		&Prf.Email, &Prf.Username,
@@ -193,6 +190,63 @@ func (r *UserRepository) GetManagerProfileByUserID(ctx context.Context, userID s
 	}, nil
 }
 
+// GetAllUsersWithRoles trả về danh sách tất cả user kèm role
+func (r *UserRepository) GetAllUsersWithRoles(ctx context.Context) ([]models.LoginUserInfo, error) {
+	query := `
+		SELECT u.id, u.email, u.username, array_agg(r.name)
+		FROM users u
+		LEFT JOIN user_roles ur ON u.id = ur.user_id
+		LEFT JOIN roles r ON ur.role_id = r.id
+		GROUP BY u.id, u.email, u.username
+	`
+	rows, err := r.db.QueryContext(ctx, query)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var users []models.LoginUserInfo
+	for rows.Next() {
+		var user models.LoginUserInfo
+		if err := rows.Scan(&user.UserID, &user.Email, &user.Username, pq.Array(&user.Roles)); err != nil {
+			return nil, err
+		}
+		users = append(users, user)
+	}
+	return users, nil
+}
+
+func (r *UserRepository) GetRolesByUserID(ctx context.Context, userID string) ([]string, error) {
+	query := `
+			SELECT r.name
+			FROM user_roles ur
+			JOIN roles r ON ur.role_id = r.id
+			WHERE ur.user_id = $1
+		`
+	rows, err := r.db.QueryContext(ctx, query, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var roles []string
+	for rows.Next() {
+		var role string
+		if err := rows.Scan(&role); err != nil {
+			return nil, err
+		}
+		roles = append(roles, role)
+	}
+	return roles, nil
+}
+
+func (r *UserRepository) UpdateAvatar(ctx context.Context, userID string, avatar string) error {
+		_, err := r.db.ExecContext(ctx, `UPDATE users SET avatar = $1, updated_at = NOW() WHERE id = $2`, avatar, userID)
+		return err
+}
+
+func (r *UserRepository) UpdatePassword(ctx context.Context, userID string, passwordHash string) error {
+		_, err := r.db.ExecContext(ctx, `UPDATE users SET password_hash = $1, updated_at = NOW() WHERE id = $2`, passwordHash, userID)
+		return err
+}
 
 func (r *UserRepository) AssignRole(ctx context.Context, userID string, roleID string) error {
 	_, err := r.db.ExecContext(ctx, `INSERT INTO user_roles (user_id, role_id) VALUES ($1, $2) ON CONFLICT DO NOTHING`, userID, roleID)

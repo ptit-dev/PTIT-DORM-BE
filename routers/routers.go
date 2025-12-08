@@ -1,4 +1,3 @@
-			
 package routes
 
 import (
@@ -26,6 +25,9 @@ func SetupRoutes(router *gin.Engine, cfg *config.Config) {
 	userRepo := repository.NewUserRepository(database.GetDB(), cfg.Database.Schema)
 	// Initialize auth handler with config
 	authHandler := handlers.NewAuthHandler(cfg, userRepo)
+
+	// User handler
+	userHandler := handlers.NewUserHandler(cfg, userRepo)
 
 	// Auth routes
 	router.POST("/login", authHandler.LoginHandler)
@@ -72,6 +74,11 @@ func SetupRoutes(router *gin.Engine, cfg *config.Config) {
 		v2 := v1.Group("/protected")
 		{
 			v2.Use(middleware.Authentication(cfg.JWT.Secret))
+			// Đổi avatar và mật khẩu cho user hiện tại
+			v2.PATCH("/me/avatar", userHandler.UpdateAvatar)
+			v2.PATCH("/me/password", userHandler.UpdatePassword)
+			// API: List all users with roles (admin_system only)
+			v2.GET("/users", userHandler.ListAllUsers)
 			v2.GET("/contracts/me", contractHandler.GetMyContract)
 			v2.PATCH("/contracts/:id/confirm", contractHandler.ConfirmContract)
 			v2.GET("/contracts", contractHandler.GetAllContracts)
