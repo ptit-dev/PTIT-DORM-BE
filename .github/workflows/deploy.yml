@@ -69,7 +69,12 @@ jobs:
           }
 
           Write-Host "=== KILLING REMAINING PROCESSES ==="
-          taskkill /IM $exeName /F 2>$null
+
+          if (tasklist | findstr /I $exeName) {
+            Write-Host "Killing $exeName process..."
+            taskkill /IM $exeName /F
+            Start-Sleep -Seconds 1
+          }
 
           Write-Host "=== COPYING NEW EXECUTABLE ==="
           if (-not (Test-Path $prod)) {
