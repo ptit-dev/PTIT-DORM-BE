@@ -58,7 +58,7 @@ jobs:
 
           Write-Host "=== STOPPING SERVICE ==="
           if (Get-Service -Name $svc -ErrorAction SilentlyContinue) {
-            Stop-Service -Name $svc -Force
+            taskkill /F /FI "SERVICES eq $svc"
             # Wait until service fully stops
             for ($i=1; $i -le 10; $i++) {
               $status = (Get-Service -Name $svc).Status
