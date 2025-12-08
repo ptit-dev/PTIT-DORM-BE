@@ -6,8 +6,8 @@ on:
   workflow_dispatch:
 
 env:
-  PROD_DIR: 'C:\Users\trong.ngovan\My Documents\MyProject\BE_DORM_PTIT'
-  SERVICE_NAME: 'PTITDormService'
+  PROD_DIR: 'C:\Users\trong.ngovan\MyProject\BeDormPtit'
+  SERVICE_NAME: 'PtitDormService'
 
 jobs:
   build:
@@ -56,7 +56,7 @@ jobs:
           $exe  = Join-Path $PWD "artifact\ptit_dorm.exe"
           $exeName = "ptit_dorm.exe"
 
-          Write-Host "=== STOPPING SERVICE ==="
+          Write-Host "=== KILLING SERVICE ==="
           if (Get-Service -Name $svc -ErrorAction SilentlyContinue) {
             taskkill /F /FI "SERVICES eq $svc"
             # Wait until service fully stops
