@@ -19,7 +19,7 @@ import (
 func Health(c *gin.Context) {
 	c.JSON(http.StatusOK, models.HealthResponse{
 		Status:  "ok",
-		Message: "Service is running",
+		Message: "Service is running version 2",
 		Time:    time.Now().Format(time.RFC3339),
 	})
 }
