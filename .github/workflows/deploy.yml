@@ -53,70 +53,65 @@ jobs:
         run: |
           $prod = $env:PROD_DIR
           $svc  = $env:SERVICE_NAME
-          $exe  = Join-Path $PWD "artifact\ptit_dorm.exe"
-          $exeName = "ptit_dorm.exe"
+          $exe  = Join-Path $PWD 'artifact\ptit_dorm.exe'
+          $exeName = 'ptit_dorm.exe'
 
-          Write-Host "=== KILLING SERVICE ==="
+          Write-Host '=== KILLING SERVICE ==='
           if (Get-Service -Name $svc -ErrorAction SilentlyContinue) {
             taskkill /F /FI "SERVICES eq $svc"
-            # Wait until service fully stops
             for ($i=1; $i -le 10; $i++) {
               $status = (Get-Service -Name $svc).Status
-              if ($status -eq "Stopped") { break }
+              if ($status -eq 'Stopped') { break }
               Write-Host "Waiting service to stop... ($i)"
               Start-Sleep -Seconds 1
             }
           }
 
-          Write-Host "=== KILLING REMAINING PROCESSES ==="
-
+          Write-Host '=== KILLING REMAINING PROCESSES ==='
           if (tasklist | findstr /I $exeName) {
             Write-Host "Killing $exeName process..."
             taskkill /IM $exeName /F
             Start-Sleep -Seconds 1
           }
 
-          Write-Host "=== COPYING NEW EXECUTABLE ==="
+          Write-Host '=== COPYING NEW EXECUTABLE ==='
           if (-not (Test-Path $prod)) {
             New-Item -ItemType Directory -Path $prod | Out-Null
           }
           Copy-Item -Path $exe -Destination "$prod\ptit_dorm.exe" -Force
 
-          Write-Host "=== STARTING SERVICE ==="
-
+          Write-Host '=== STARTING SERVICE ==='
           if (Get-Service -Name $svc -ErrorAction SilentlyContinue) {
 
             try {
               Start-Service -Name $svc -ErrorAction Stop
-              Write-Host "Start-Service executed."
+              Write-Host 'Start-Service executed.'
             }
             catch {
-              Write-Host "⚠️ Start-Service FAILED but will continue. Error:"
+              Write-Host '⚠️ Start-Service FAILED but will continue. Error:'
               Write-Host $_.Exception.Message
             }
 
-            # Kiểm tra trạng thái thực tế sau khi start
-            Write-Host "Checking service status..."
+            Write-Host 'Checking service status...'
             for ($i=1; $i -le 10; $i++) {
               $status = (Get-Service -Name $svc).Status
               Write-Host "Status: $status (attempt $i)"
-
-              if ($status -eq "Running") {
-                Write-Host "✅ Service is RUNNING — deploy success."
-                exit 0  # coi như thành công
+              if ($status -eq 'Running') {
+                Write-Host '✅ Service is RUNNING — deploy success.'
+                exit 0
               }
-
               Start-Sleep -Seconds 1
             }
 
-            Write-Host "❌ Service failed to reach RUNNING state."
+            Write-Host '❌ Service failed to reach RUNNING state.'
             exit 1
           }
           else {
-            Write-Host "Service $svc not found - create it with NSSM first."
+            Write-Host "❌ Service $svc not found - create it with NSSM first."
+            exit 1
           }
 
       - name: Cleanup Artifact
         if: always()
         shell: powershell
-        run: Remove-Item -Path ".\artifact" -Recurse -Force
+        run: Remove-Item -Path '.\artifact' -Recurse -Force
