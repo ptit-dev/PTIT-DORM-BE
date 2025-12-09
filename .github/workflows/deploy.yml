@@ -88,7 +88,7 @@ jobs:
               Write-Host 'Start-Service executed.'
             }
             catch {
-              Write-Host '⚠️ Start-Service FAILED but will continue. Error:'
+              Write-Host 'Start-Service FAILED but will continue. Error:'
               Write-Host $_.Exception.Message
             }
 
@@ -97,17 +97,17 @@ jobs:
               $status = (Get-Service -Name $svc).Status
               Write-Host "Status: $status (attempt $i)"
               if ($status -eq 'Running') {
-                Write-Host '✅ Service is RUNNING — deploy success.'
+                Write-Host 'Service is RUNNING: deploy success.'
                 exit 0
               }
               Start-Sleep -Seconds 1
             }
 
-            Write-Host '❌ Service failed to reach RUNNING state.'
+            Write-Host 'Service failed to reach RUNNING state.'
             exit 1
           }
           else {
-            Write-Host "❌ Service $svc not found - create it with NSSM first."
+            Write-Host "Service $svc not found - create it with NSSM first."
             exit 1
           }
 
