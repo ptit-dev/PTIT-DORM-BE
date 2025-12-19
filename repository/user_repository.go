@@ -4,6 +4,7 @@ import (
 	"Backend_Dorm_PTIT/models"
 	"context"
 	"database/sql"
+	"time"
 
 	"github.com/lib/pq"
 	"golang.org/x/crypto/bcrypt"
@@ -134,11 +135,17 @@ func (r *UserRepository) GetStudentProfileByUserID(ctx context.Context, userID s
 	row := r.db.QueryRowContext(ctx, query, userID)
 	var Prf models.ProfileStudentResponse
 
+	var studentDOB sql.NullTime
 	if err := row.Scan(
 		&Prf.Email, &Prf.Username,
-		&Prf.Student.ID, &Prf.Student.FullName, &Prf.Student.Phone, &Prf.Student.CCCD, &Prf.Student.DOB, &Prf.Student.Avatar, &Prf.Student.Province, &Prf.Student.Commune, &Prf.Student.DetailAddr, &Prf.Student.Type, &Prf.Student.Course, &Prf.Student.Major, &Prf.Student.Class,
+		&Prf.Student.ID, &Prf.Student.FullName, &Prf.Student.Phone, &Prf.Student.CCCD, &studentDOB, &Prf.Student.Avatar, &Prf.Student.Province, &Prf.Student.Commune, &Prf.Student.DetailAddr, &Prf.Student.Type, &Prf.Student.Course, &Prf.Student.Major, &Prf.Student.Class,
 	); err != nil {
 		return nil, err
+	}
+	if studentDOB.Valid {
+		Prf.Student.DOB = studentDOB.Time
+	} else {
+		Prf.Student.DOB = time.Time{}
 	}
 
 	parentQuery := `SELECT id, student_id, type, fullname, phone, dob, address FROM parents WHERE student_id = $1`
@@ -149,9 +156,21 @@ func (r *UserRepository) GetStudentProfileByUserID(ctx context.Context, userID s
 	var parents []models.Parent
 	for parentRows.Next() {
 		var parent models.Parent
-		if err := parentRows.Scan(&parent.ID, &parent.StudentID, &parent.Type, &parent.FullName, &parent.Phone, &parent.DOB, &parent.Address); err != nil {
+		var parentDOB sql.NullTime
+		var parentAddress sql.NullString
+		if err := parentRows.Scan(&parent.ID, &parent.StudentID, &parent.Type, &parent.FullName, &parent.Phone, &parentDOB, &parentAddress); err != nil {
 			parentRows.Close()
 			return nil, err
+		}
+		if parentDOB.Valid {
+			parent.DOB = parentDOB.Time
+		} else {
+			parent.DOB = time.Time{}
+		}
+		if parentAddress.Valid {
+			parent.Address = parentAddress.String
+		} else {
+			parent.Address = ""
 		}
 		parents = append(parents, parent)
 	}
@@ -191,23 +210,23 @@ func (r *UserRepository) GetManagerProfileByUserID(ctx context.Context, userID s
 }
 
 // GetAllUsersWithRoles trả về danh sách tất cả user kèm role
-func (r *UserRepository) GetAllUsersWithRoles(ctx context.Context) ([]models.LoginUserInfo, error) {
+func (r *UserRepository) GetAllUsersWithRoles(ctx context.Context) ([]models.Account, error) {
 	query := `
-		SELECT u.id, u.email, u.username, array_agg(r.name)
+		SELECT u.id, u.email, u.username, u.status, u.created_at, array_agg(r.name)
 		FROM users u
 		LEFT JOIN user_roles ur ON u.id = ur.user_id
 		LEFT JOIN roles r ON ur.role_id = r.id
-		GROUP BY u.id, u.email, u.username
+		GROUP BY u.id, u.email, u.username, u.status, u.created_at
 	`
 	rows, err := r.db.QueryContext(ctx, query)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var users []models.LoginUserInfo
+	var users []models.Account
 	for rows.Next() {
-		var user models.LoginUserInfo
-		if err := rows.Scan(&user.UserID, &user.Email, &user.Username, pq.Array(&user.Roles)); err != nil {
+		var user models.Account
+		if err := rows.Scan(&user.ID, &user.Email, &user.Username, &user.Status, &user.CreatedAt, pq.Array(&user.Roles)); err != nil {
 			return nil, err
 		}
 		users = append(users, user)
@@ -239,13 +258,29 @@ func (r *UserRepository) GetRolesByUserID(ctx context.Context, userID string) ([
 }
 
 func (r *UserRepository) UpdateAvatar(ctx context.Context, userID string, avatar string) error {
-		_, err := r.db.ExecContext(ctx, `UPDATE users SET avatar = $1, updated_at = NOW() WHERE id = $2`, avatar, userID)
+	roles, err := r.GetRolesByUserID(ctx, userID)
+	if err != nil {
 		return err
+	}
+	isStudent := false
+	for _, role := range roles {
+		if role == "student" {
+			isStudent = true
+			break
+		}
+	}
+	if isStudent {
+		_, err := r.db.ExecContext(ctx, `UPDATE students SET avatar = $1 WHERE id = $2`, avatar, userID)
+		return err
+	} else {
+		_, err := r.db.ExecContext(ctx, `UPDATE managers SET avatar = $1 WHERE id = $2`, avatar, userID)
+		return err
+	}
 }
 
 func (r *UserRepository) UpdatePassword(ctx context.Context, userID string, passwordHash string) error {
-		_, err := r.db.ExecContext(ctx, `UPDATE users SET password_hash = $1, updated_at = NOW() WHERE id = $2`, passwordHash, userID)
-		return err
+	_, err := r.db.ExecContext(ctx, `UPDATE users SET password_hash = $1, updated_at = NOW() WHERE id = $2`, passwordHash, userID)
+	return err
 }
 
 func (r *UserRepository) AssignRole(ctx context.Context, userID string, roleID string) error {
@@ -260,4 +295,70 @@ func contains(slice []string, item string) bool {
 		}
 	}
 	return false
+}
+
+func (r *UserRepository) UpdateManagerProfileDynamic(ctx context.Context, userID string, fields map[string]interface{}) error {
+	if len(fields) == 0 {
+		return nil
+	}
+	setParts := make([]string, 0, len(fields))
+	args := make([]interface{}, 0, len(fields)+1)
+	idx := 1
+	for k, v := range fields {
+		setParts = append(setParts, k+" = $"+itoa(idx))
+		args = append(args, v)
+		idx++
+	}
+	args = append(args, userID)
+	query := "UPDATE managers SET " + joinComma(setParts) + " WHERE id = $" + itoa(idx)
+	_, err := r.db.ExecContext(ctx, query, args...)
+	return err
+}
+
+// joinComma joins string slice with comma
+func joinComma(fields []string) string {
+	if len(fields) == 0 {
+		return ""
+	}
+	out := fields[0]
+	for i := 1; i < len(fields); i++ {
+		out += ", " + fields[i]
+	}
+	return out
+}
+
+// itoa converts int to string (no import strconv for brevity)
+func itoa(i int) string {
+	return string('0' + i)
+}
+
+func (r *UserRepository) UpdateStatus(ctx context.Context, userID string, status string, updatedAt time.Time) error {
+	_, err := r.db.ExecContext(ctx, `UPDATE users SET status = $1, updated_at = $2 WHERE id = $3`, status, updatedAt, userID)
+	return err
+}
+
+// Kiểm tra status của user
+func (r *UserRepository) GetStatusByID(ctx context.Context, userID string) (string, error) {
+	row := r.db.QueryRowContext(ctx, `SELECT status FROM users WHERE id = $1`, userID)
+	var status string
+	if err := row.Scan(&status); err != nil {
+		if err == sql.ErrNoRows {
+			return "", nil
+		}
+		return "", err
+	}
+	return status, nil
+}
+
+// kiểm tra status qua username
+func (r *UserRepository) GetStatusByUsername(ctx context.Context, username string) (string, error) {
+	row := r.db.QueryRowContext(ctx, `SELECT status FROM users WHERE username = $1`, username)
+	var status string
+	if err := row.Scan(&status); err != nil {
+		if err == sql.ErrNoRows {
+			return "", nil
+		}
+		return "", err
+	}
+	return status, nil
 }

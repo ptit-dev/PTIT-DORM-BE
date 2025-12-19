@@ -6,6 +6,7 @@ import (
 	_ "Backend_Dorm_PTIT/docs" // Import docs to load swagger documentation
 	"Backend_Dorm_PTIT/handlers"
 	"Backend_Dorm_PTIT/middleware"
+	"Backend_Dorm_PTIT/service"
 
 	// "Backend_Dorm_PTIT/middleware"
 	"Backend_Dorm_PTIT/repository"
@@ -17,6 +18,7 @@ import (
 
 // SetupRoutes configures all application routes with dependency injection
 func SetupRoutes(router *gin.Engine, cfg *config.Config) {
+
 	// Health check endpoint
 	router.GET("/health", handlers.Health)
 
@@ -28,6 +30,8 @@ func SetupRoutes(router *gin.Engine, cfg *config.Config) {
 
 	// User handler
 	userHandler := handlers.NewUserHandler(cfg, userRepo)
+
+	WSService := service.NewWSService()
 
 	// Auth routes
 	router.POST("/login", authHandler.LoginHandler)
@@ -42,6 +46,13 @@ func SetupRoutes(router *gin.Engine, cfg *config.Config) {
 		test.GET("/getprofile", testHandler.GetProfileHandler)
 		test.GET("/sendmail", testHandler.SendEmailHandler)
 
+	}
+
+	ws := router.Group("/ws/v1")
+	{
+		ws.Use(middleware.AuthenticateWS(cfg.JWT.Secret))
+		wsHandler := handlers.NewWSHandler(cfg, WSService)
+		ws.GET("/admin-connect", wsHandler.HandleWSAdmin)
 	}
 
 	v1 := router.Group("/api/v1")
@@ -66,6 +77,9 @@ func SetupRoutes(router *gin.Engine, cfg *config.Config) {
 		electricBillComplaintHandler := handlers.NewElectricBillComplaintHandler(electricBillComplaintRepo, cfg)
 		facilityComplaintRepo := repository.NewFacilityComplaintRepository(database.GetDB())
 		facilityComplaintHandler := handlers.NewFacilityComplaintHandler(facilityComplaintRepo, cfg)
+
+		backupRepo := repository.NewBackUpRepository(database.GetDB())
+		backupHandler := handlers.NewBackupHandler(cfg, backupRepo)
 		// Đăng ký ký túc xá
 		v1.POST("/dorm-applications", dormAppHandler.CreateDormApplication)
 		v1.POST("/send-otp", mailHandler.SendOTPEmailHandler)
@@ -74,11 +88,17 @@ func SetupRoutes(router *gin.Engine, cfg *config.Config) {
 		v2 := v1.Group("/protected")
 		{
 			v2.Use(middleware.Authentication(cfg.JWT.Secret))
+			// api to backupdata for admin_system
+			v2.GET("/backup-data", backupHandler.BackUpData)
 			// Đổi avatar và mật khẩu cho user hiện tại
 			v2.PATCH("/me/avatar", userHandler.UpdateAvatar)
 			v2.PATCH("/me/password", userHandler.UpdatePassword)
 			// API: List all users with roles (admin_system only)
 			v2.GET("/users", userHandler.ListAllUsers)
+			// update profile ( manager and admin_system only)
+			v2.PUT("/me/profile", userHandler.UpdateOwnManagerProfile)
+			// update status user... (admin_system only)
+			v2.PATCH("/users/:id/status", userHandler.UpdateUserStatus)
 			v2.GET("/contracts/me", contractHandler.GetMyContract)
 			v2.PATCH("/contracts/:id/confirm", contractHandler.ConfirmContract)
 			v2.GET("/contracts", contractHandler.GetAllContracts)

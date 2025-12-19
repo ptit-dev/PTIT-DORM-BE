@@ -39,7 +39,7 @@ func (h *testHandler) GetProfileHandler(c *gin.Context) {
 		if ok {
 			for _, r := range roles {
 				roleStr, ok := r.(string)
-				if ok && (roleStr == "manager" || roleStr == "admin_system") {
+				if ok && (roleStr == "manager" || roleStr == "admin_system" || roleStr == "admin" || roleStr == "non-manager") {
 					isAdmin = true
 					break
 				}

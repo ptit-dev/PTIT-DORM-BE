@@ -70,6 +70,7 @@ func main() {
 		logger.Fatal().Err(err).Msg("Failed to initialize Redis whitelist")
 	}
 
+
 	// Create Gin router
 	r := gin.New()
 

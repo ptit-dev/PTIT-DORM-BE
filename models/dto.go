@@ -28,6 +28,15 @@ type LoginUserInfo struct {
 	Roles       []string `json:"roles"`
 }
 
+type Account struct {
+	ID       string `json:"id"`
+	Email    string `json:"email"`
+	Username string `json:"username"`
+	Status   string `json:"status"`
+	CreatedAt string `json:"created_at"`
+	Roles    []string `json:"roles"`
+}
+
 type RefreshRequest struct {
 	RefreshToken string `json:"refresh_token" binding:"required"`
 }

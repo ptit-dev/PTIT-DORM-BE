@@ -17,6 +17,7 @@ type Config struct {
 	MailGoogle MailGoogleConfig `mapstructure:"mail_google"`
 	Logging   logger.LogConfig `mapstructure:"logging"`
 	Cloudinary CloudinaryConfig `mapstructure:"cloudinary"`
+	WebSocket  WebSocketConfig  `mapstructure:"websocket"`
 }
 
 type ServerConfig struct {
@@ -61,10 +62,15 @@ type DatabaseConfig struct {
 }
 
 type CORSConfig struct {
-	AllowOrigins string `mapstructure:"allow_origins"`
-	AllowMethods string `mapstructure:"allow_methods"`
-	AllowHeaders string `mapstructure:"allow_headers"`
-	AllowCreds   bool   `mapstructure:"allow_credentials"`
+	AllowOrigins []string
+	AllowMethods string
+	AllowHeaders string
+	AllowCreds   bool
+}
+type WebSocketConfig struct {
+	WriteWait  int `mapstructure:"write_wait"`  // in seconds
+	PongWait   int `mapstructure:"pong_wait"`   // in seconds
+	PingPeriod int `mapstructure:"ping_period"` // in seconds
 }
 
 

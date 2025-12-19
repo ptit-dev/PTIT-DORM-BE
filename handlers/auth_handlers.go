@@ -193,6 +193,17 @@ func (h *AuthHandler) LoginHandler(c *gin.Context) {
 		return
 	}
 
+	// Kiểm tra trạng thái toàn khoản nếu là inactive thì k cho đăng nhập , lấy status qua username từ repo
+	status, err := h.userRepo.GetStatusByUsername(c.Request.Context(), req.Username)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, models.ErrorResponse(http.StatusInternalServerError, "failed to get user status"))
+		return
+	}
+	if status == "inactive" {
+		c.JSON(http.StatusUnauthorized, models.ErrorResponse(http.StatusUnauthorized, "user account is inactive"))
+		return
+	}	
+
 	// Lấy user info qua email
 	user, err := h.userRepo.GetUserInfo(c.Request.Context(), req.Username)
 	if err != nil || user == nil {
@@ -289,10 +300,10 @@ func (h *AuthHandler) RefreshHandler(c *gin.Context) {
 
 
 	lockKey := hashLockKey
-	maxRetry := 10
+	maxRetry := 25
 	lockAcquired := false
 	for i := 0; i < maxRetry; i++ {
-		ok, err := database.SetLockKey(lockKey, "1", 10*time.Second)
+		ok, err := database.SetLockKey(lockKey, "1", 25*time.Second)
 		if err != nil {
 			logger.Error().Err(err).Str("lockKey", lockKey).Msg("Lock Key is being held!")
 		}
@@ -301,7 +312,7 @@ func (h *AuthHandler) RefreshHandler(c *gin.Context) {
 			logger.Info().Str("lockKey", lockKey).Msg("Lock acquired")
 			break
 		}
-		time.Sleep(300 * time.Millisecond)
+		time.Sleep(1000 * time.Millisecond)
 	}
 	if !lockAcquired {
 		logger.Error().Str("lockKey", lockKey).Msg("Could not acquire lock after retries")
@@ -489,9 +500,11 @@ func (h *AuthHandler) RefreshHandler(c *gin.Context) {
 		RefreshToken: signedRefresh,
 		UserID:       userID,
 	}
+    logger.Info().Msg("Simulating long processing time")
+	time.Sleep(20 * time.Second)
 
 	respData, _ := json.Marshal(resp)
-	if err := database.SetCacheRequest(hashRequest, string(respData), 20*time.Second); err != nil {
+	if err := database.SetCacheRequest(hashRequest, string(respData), 30*time.Second); err != nil {
 		logger.Error().Err(err).Str("hash_request", hashRequest).Msg("Failed to cache refresh response")
 	} else {
 		logger.Info().Str("hash_request", hashRequest).Msg("Refresh response cache saved successfully")

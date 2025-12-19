@@ -4,7 +4,6 @@ import (
 	"Backend_Dorm_PTIT/models"
 	"net/http"
 	"time"
-
 	"github.com/gin-gonic/gin"
 )
 
@@ -19,7 +18,7 @@ import (
 func Health(c *gin.Context) {
 	c.JSON(http.StatusOK, models.HealthResponse{
 		Status:  "ok",
-		Message: "Service is running version 1.7",
+		Message: "Service is running version 1.1.0",
 		Time:    time.Now().Format(time.RFC3339),
 	})
 }
