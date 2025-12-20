@@ -19,7 +19,6 @@ import (
 // SetupRoutes configures all application routes with dependency injection
 func SetupRoutes(router *gin.Engine, cfg *config.Config) {
 
-    router.Use(middleware.Cors)
 	// Health check endpoint
 	router.GET("/health", handlers.Health)
 

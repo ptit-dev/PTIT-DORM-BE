@@ -77,7 +77,7 @@ func main() {
 	// Use middleware basic
 	r.Use(gin.Recovery())
 	r.Use(middleware.Logger())
-	r.Use(middleware.CORS(&cfg.CORS))
+	r.Use(middleware.Cors)
 
 	// Setup routes with dependency injection
 	routes.SetupRoutes(r, cfg)
