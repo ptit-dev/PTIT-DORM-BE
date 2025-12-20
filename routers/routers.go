@@ -18,7 +18,8 @@ import (
 
 // SetupRoutes configures all application routes with dependency injection
 func SetupRoutes(router *gin.Engine, cfg *config.Config) {
-
+	
+    router.Use(middleware.CORS(&cfg.CORS))
 	// Health check endpoint
 	router.GET("/health", handlers.Health)
 
@@ -152,33 +153,4 @@ func SetupRoutes(router *gin.Engine, cfg *config.Config) {
 			v2.PATCH("/electric-bills/:id/confirm-only", electricBillHandler.ConfirmOnlyByStudent)
 		}
 	}
-
-	// // API v1 routes
-	// v1 := router.Group("/api/v1")
-	// {
-	// 	// Initialize repositories
-	// 	campaignRepo := repository.NewDonationCampaignRepository(database.GetDB())
-
-	// 	// Initialize handlers
-	// 	campaignHandler := handlers.NewDonationCampaignHandler(campaignRepo)
-
-	// 	// Campaign routes (protected)
-	// 	campaigns_private := v1.Group("/admin/campaigns")
-	// 	{
-	// 		campaigns_private.Use(middleware.Authentication(cfg.JWT.Secret))
-	// 		campaigns_private.POST("", campaignHandler.CreateCampaign)
-	// 		campaigns_private.PUT("/:id", campaignHandler.UpdateCampaign)
-	// 		campaigns_private.PATCH("/:id/activate", campaignHandler.ActivateCampaign)
-	// 		campaigns_private.PATCH("/:id/close", campaignHandler.CloseCampaign)
-	// 	}
-
-	// 	// Campaign routes (public)
-	// 	campaigns_public := v1.Group("/campaigns")
-	// 	{
-	// 		campaigns_public.GET("", campaignHandler.ListCampaigns)
-	// 		campaigns_public.GET("/stats", campaignHandler.GetStats)
-	// 		campaigns_public.GET("/:id", campaignHandler.GetCampaign)
-	// 		campaigns_public.GET("/:id/top-contributors", campaignHandler.GetTopContributors)
-	// 	}
-	// }
 }

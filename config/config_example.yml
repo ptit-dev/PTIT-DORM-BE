@@ -5,10 +5,10 @@ server:
   gin_mode: debug
 
 database:
-  host: dpg-d3uppi6uk2gs73e1vga0-a.singapore-postgres.render.com
+  host: host
   port: 5432
   username: ptit_dev_admin
-  password: jPNRxlD8GO8REgZsVaGKpTAGYwElAhQ2
+  password: pass
   name: ptitdorm
   schema: public
   sslmode: require
@@ -22,28 +22,28 @@ cors:
 
 
 jwt:
-  secret: "a75081d475a4cd4e130916f26e3e8d3ebc376fa132e873c057c5a0c5ab26cc06"
+  secret: "secert"
   refresh_exp: 432000
   access_exp: 3600
 
 
 
 redis:
-  address: "redis-14256.crce178.ap-east-1-1.ec2.redns.redis-cloud.com:14256"
+  address: "redis"
   username: "default"
-  password: "hh2D1kuwJ4sqpsOsDlAOaLPZPhsY6FfQ"
+  password: ""
   db: 0
 
 mail_google:
   host: "smtp.gmail.com"
   port: "587"
   email: "ngovantrong1308@gmail.com"
-  password: "mhkf qojw eovr mnuj"
+  password: ""
 
 cloudinary:
-  cloudname: "drly2lfdz"
-  apikey: "862646924255471"
-  secret: "CGtGeFIoJBjXslcoeYV2nhGiD6E"
+  cloudname: ""
+  apikey: ""
+  secret: ""
 
 # Logging Configuration
 logging:
@@ -52,4 +52,4 @@ logging:
   file_path: "logs/ptit_dorm.log"  # required when output=file
   max_size: 100           # max size in MB before rotation (default: 100)
   max_age: 30             # max age in days to retain old logs (default: 30)
-
+  

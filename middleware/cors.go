@@ -7,12 +7,12 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-func CORS(corsConfig *config.CORSConfig) gin.HandlerFunc {
+func CORS(cfg *config.CORSConfig) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		origin := c.Request.Header.Get("Origin")
 
 		allowed := false
-		for _, o := range corsConfig.AllowOrigins {
+		for _, o := range cfg.AllowOrigins {
 			if o == origin {
 				allowed = true
 				break
@@ -20,24 +20,18 @@ func CORS(corsConfig *config.CORSConfig) gin.HandlerFunc {
 		}
 
 		if allowed {
-			c.Writer.Header().Set("Access-Control-Allow-Origin", origin)
-			c.Writer.Header().Set("Vary", "Origin")
-			c.Writer.Header().Set(
-				"Access-Control-Allow-Credentials",
-				strconv.FormatBool(corsConfig.AllowCreds),
-			)
-			c.Writer.Header().Set(
-				"Access-Control-Allow-Headers",
-				corsConfig.AllowHeaders,
-			)
-			c.Writer.Header().Set(
-				"Access-Control-Allow-Methods",
-				corsConfig.AllowMethods,
-			)
+			c.Header("Access-Control-Allow-Origin", origin)
+			c.Header("Access-Control-Allow-Credentials", strconv.FormatBool(cfg.AllowCreds))
+			c.Header("Vary", "Origin")
 		}
 
+		// ⚠️ luôn set cho preflight
+		c.Header("Access-Control-Allow-Headers", cfg.AllowHeaders)
+		c.Header("Access-Control-Allow-Methods", cfg.AllowMethods)
+		c.Header("Access-Control-Max-Age", "86400")
+
 		if c.Request.Method == "OPTIONS" {
-			c.AbortWithStatus(204)
+			c.AbortWithStatus(200)
 			return
 		}
 

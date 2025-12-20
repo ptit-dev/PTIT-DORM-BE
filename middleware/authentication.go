@@ -14,6 +14,10 @@ import (
 // Authentication returns a middleware that validates JWT tokens and checks whitelist
 func Authentication(jwtSecret string) gin.HandlerFunc {
 	return func(c *gin.Context) {
+		if c.Request.Method == "OPTIONS" {
+			c.Next()
+			return
+		}
 		tokenString := extractBearerToken(c)
 		if tokenString == "" {
 			abortWithError(c, http.StatusUnauthorized, constants.ErrInvalidToken)
