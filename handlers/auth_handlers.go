@@ -500,8 +500,6 @@ func (h *AuthHandler) RefreshHandler(c *gin.Context) {
 		RefreshToken: signedRefresh,
 		UserID:       userID,
 	}
-    logger.Info().Msg("Simulating long processing time")
-	time.Sleep(20 * time.Second)
 
 	respData, _ := json.Marshal(resp)
 	if err := database.SetCacheRequest(hashRequest, string(respData), 30*time.Second); err != nil {

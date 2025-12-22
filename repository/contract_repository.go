@@ -171,6 +171,26 @@ func (r *ContractRepository) GetAllContracts(ctx context.Context) ([]*models.Con
 	return contracts, nil
 }
 
+// Lấy toàn bộ hợp đồng đã được duyệt (status = 'approved')
+// Chỉ trả về id hợp đồng và mã phòng để phục vụ thống kê
+func (r *ContractRepository) GetApprovedContracts(ctx context.Context) ([]models.ApprovedContractSummary, error) {
+	query := `SELECT id, room FROM contracts WHERE status = 'approved'`
+	rows, err := r.DB.QueryContext(ctx, query)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var contracts []models.ApprovedContractSummary
+	for rows.Next() {
+		var item models.ApprovedContractSummary
+		if err := rows.Scan(&item.ContractID, &item.Room); err != nil {
+			return nil, err
+		}
+		contracts = append(contracts, item)
+	}
+	return contracts, nil
+}
+
 // Quản lý xác nhận hợp đồng: cập nhật status (approved/canceled), note
 func (r *ContractRepository) VerifyContract(ctx context.Context, contractID string, status string, note string) error {
 	query := `UPDATE contracts SET status = $1, note = $2, updated_at = NOW() WHERE id = $3`
@@ -183,4 +203,30 @@ func (r *ContractRepository) UpdateRoom(ctx context.Context, contractID string, 
 	query := `UPDATE contracts SET room = $1, updated_at = NOW() WHERE id = $2`
 	_, err := r.DB.ExecContext(ctx, query, newRoom, contractID)
 	return err
+}
+
+// Lấy danh sách thông tin nội trú từ các hợp đồng đã được duyệt theo từng phòng
+// Bao gồm: username, fullname, class, avatar, student_id
+func (r *ContractRepository) GetResidentsFromApprovedContractsByRoom(ctx context.Context, room string) ([]models.ResidentInfo, error) {
+	query := `
+		SELECT u.username, s.fullname, s.class, s.avatar, s.id
+		FROM contracts c
+		JOIN students s ON c.student_id = s.id
+		JOIN users u ON s.id = u.id
+		WHERE c.status = 'approved' AND c.room = $1
+	`
+	rows, err := r.DB.QueryContext(ctx, query, room)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var residents []models.ResidentInfo
+	for rows.Next() {
+		var rInfo models.ResidentInfo
+		if err := rows.Scan(&rInfo.Username, &rInfo.FullName, &rInfo.Class, &rInfo.Avatar, &rInfo.StudentID); err != nil {
+			return nil, err
+		}
+		residents = append(residents, rInfo)
+	}
+	return residents, nil
 }
