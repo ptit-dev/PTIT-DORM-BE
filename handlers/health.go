@@ -18,7 +18,7 @@ import (
 func Health(c *gin.Context) {
 	c.JSON(http.StatusOK, models.HealthResponse{
 		Status:  "ok",
-		Message: "PTIT Dorm Backend Server is running version 1.11.0",
+		Message: "PTIT Dorm Backend Server is running version 1.13.0",
 		Time:    time.Now().Format(time.RFC3339),
 	})
 }
