@@ -144,3 +144,34 @@ func (r *DormApplicationRepository) AddGuardianToStudent(ctx context.Context, st
 	_, err := r.DB.ExecContext(ctx, query, uuid.New().String(), studentID, "Bố", guardianName, guardianPhone)
 	return err
 }
+
+// hàm này chỉ cần kiểm tra xem đã có sinh viên tồn tại với username là studentid trong bảng user và có role student chưa, không cần trả về thông tin chi tiết
+func (r *DormApplicationRepository) GetByStudentIDWithRoles(ctx context.Context, studentID string) (*models.DormApplication, error) {
+	// Kiểm tra user tồn tại với username là studentID
+	var userID string
+	err := r.DB.QueryRowContext(ctx, `SELECT id FROM users WHERE username = $1`, studentID).Scan(&userID)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil, sql.ErrNoRows
+		}
+		return nil, err
+	}
+
+	// Kiểm tra user có role "student" chưa
+	var hasRole bool
+	query := `SELECT EXISTS(
+		SELECT 1 FROM user_roles ur
+		JOIN roles r ON ur.role_id = r.id
+		WHERE ur.user_id = $1 AND r.name = 'student'
+	)`
+	err = r.DB.QueryRowContext(ctx, query, userID).Scan(&hasRole)
+	if err != nil {
+		return nil, err
+	}
+	if !hasRole {
+		return nil, sql.ErrNoRows
+	}
+
+	// Đã tồn tại user và có role student, không trả về thông tin chi tiết
+	return nil, nil
+}

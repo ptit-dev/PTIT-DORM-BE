@@ -288,6 +288,19 @@ func (r *UserRepository) AssignRole(ctx context.Context, userID string, roleID s
 	return err
 }
 
+// SetUserRoleByName clears existing roles and assigns a single role by name (e.g. "guest")
+func (r *UserRepository) SetUserRoleByName(ctx context.Context, userID string, roleName string) error {
+	var roleID string
+	if err := r.db.QueryRowContext(ctx, `SELECT id FROM roles WHERE name = $1`, roleName).Scan(&roleID); err != nil {
+		return err
+	}
+	if _, err := r.db.ExecContext(ctx, `DELETE FROM user_roles WHERE user_id = $1`, userID); err != nil {
+		return err
+	}
+	_, err := r.db.ExecContext(ctx, `INSERT INTO user_roles (user_id, role_id) VALUES ($1, $2)`, userID, roleID)
+	return err
+}
+
 func contains(slice []string, item string) bool {
 	for _, v := range slice {
 		if v == item {

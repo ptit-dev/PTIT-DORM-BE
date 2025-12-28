@@ -62,7 +62,7 @@ func (h *ContractHandler) GetMyRoomMembers(c *gin.Context) {
 		c.JSON(http.StatusUnauthorized, gin.H{"ok": false, "error": "Unauthorized, missing user_id"})
 		return
 	}
-	contracts, err := h.Repo.GetContractByStudentID(c.Request.Context(), userID)
+	contracts, err := h.Repo.GetContractByStudentID(context.Background(), userID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"ok": false, "error": "failed to get contracts", "details": err.Error()})
 		return
@@ -82,7 +82,7 @@ func (h *ContractHandler) GetMyRoomMembers(c *gin.Context) {
 		c.JSON(http.StatusNotFound, gin.H{"ok": false, "error": "No approved contract with room found for this student"})
 		return
 	}
-	residents, err := h.Repo.GetResidentsFromApprovedContractsByRoom(c.Request.Context(), room)
+	residents, err := h.Repo.GetResidentsFromApprovedContractsByRoom(context.Background(), room)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"ok": false, "error": "failed to get room members", "details": err.Error()})
 		return
@@ -124,7 +124,7 @@ func (h *ContractHandler) ConfirmContract(c *gin.Context) {
 		ImageBill: imageURL,
 		Note:      note,
 	}
-	err = h.Repo.ConfirmContract(c.Request.Context(), id, input)
+	err = h.Repo.ConfirmContract(context.Background(), id, input)
 	if err != nil {
 		c.JSON(500, gin.H{"error": "failed to confirm contract", "details": err.Error()})
 		return
@@ -158,7 +158,7 @@ func (h *ContractHandler) GetAllContracts(c *gin.Context) {
 		c.JSON(401, gin.H{"ok": false, "error": "Unauthorized, you do not have the required permissions"})
 		return
 	}
-	contracts, err := h.Repo.GetAllContracts(c.Request.Context())
+	contracts, err := h.Repo.GetAllContracts(context.Background())
 	if err != nil {
 		c.JSON(500, gin.H{"ok": false, "error": "failed to get contracts", "details": err.Error()})
 		return
@@ -193,7 +193,7 @@ func (h *ContractHandler) GetApprovedContracts(c *gin.Context) {
 		c.JSON(401, gin.H{"ok": false, "error": "Unauthorized, you do not have the required permissions"})
 		return
 	}
-	contracts, err := h.Repo.GetApprovedContracts(c.Request.Context())
+	contracts, err := h.Repo.GetApprovedContracts(context.Background())
 	if err != nil {
 		c.JSON(500, gin.H{"ok": false, "error": "failed to get approved contracts", "details": err.Error()})
 		return
@@ -238,7 +238,7 @@ func (h *ContractHandler) VerifyContract(c *gin.Context) {
 		c.JSON(400, gin.H{"error": "invalid request", "details": err.Error()})
 		return
 	}
-	err := h.Repo.VerifyContract(c.Request.Context(), id, req.Status, req.Note)
+	err := h.Repo.VerifyContract(context.Background(), id, req.Status, req.Note)
 	if err != nil {
 		c.JSON(500, gin.H{"ok": false, "error": "failed to verify contract", "details": err.Error()})
 		return
@@ -262,7 +262,7 @@ func (h *ContractHandler) GetResidentsByRoom(c *gin.Context) {
 		if ok {
 			for _, r := range roles {
 				roleStr, ok := r.(string)
-				if ok && (roleStr == "manager" || roleStr == "admin_system") {
+				if ok && (roleStr == "manager" || roleStr == "admin_system" || roleStr == "non-manager" || roleStr == "student") {
 					isManager = true
 					break
 				}
@@ -278,7 +278,7 @@ func (h *ContractHandler) GetResidentsByRoom(c *gin.Context) {
 		c.JSON(400, gin.H{"ok": false, "error": "room query parameter is required"})
 		return
 	}
-	residents, err := h.Repo.GetResidentsFromApprovedContractsByRoom(c.Request.Context(), room)
+	residents, err := h.Repo.GetResidentsFromApprovedContractsByRoom(context.Background(), room)
 	if err != nil {
 		c.JSON(500, gin.H{"ok": false, "error": "failed to get residents from approved contracts", "details": err.Error()})
 		return

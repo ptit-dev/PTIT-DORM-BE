@@ -11,7 +11,7 @@ import (
 	"net/http"
 	"strings"
 	"time"
-
+    "database/sql"
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
@@ -60,6 +60,18 @@ func (h *DormApplicationHandler) CreateDormApplication(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"ok": false, "error": "invalid form-data", "details": err.Error()})
 		return
 	}
+
+	upperStudentID := strings.ToUpper(reqForm.StudentID)
+	_, err = h.Repo.GetByStudentIDWithRoles(context.Background(), upperStudentID)
+	if err == nil {
+		// Đã tồn tại user có role student
+		c.JSON(http.StatusConflict, gin.H{"ok": false, "error": "student ID already exists and has student role"})
+		return
+	} else if err != nil && err.Error() != "sql: no rows in result set" {
+		// Lỗi khác ngoài không tìm thấy
+		c.JSON(http.StatusInternalServerError, gin.H{"ok": false, "error": "failed to check existing student ID", "details": err.Error()})
+		return
+	}
 	// Kiểm tra các trường bắt buộc (trừ priority_proof, notes, status)
 	requiredFields := map[string]string{
 		"student_id":       reqForm.StudentID,
@@ -91,9 +103,9 @@ func (h *DormApplicationHandler) CreateDormApplication(c *gin.Context) {
 		}
 	}
 
-	// Map to DormApplication model
+
 	req := models.DormApplication{
-		StudentID:      reqForm.StudentID,
+		StudentID:      upperStudentID,
 		FullName:       reqForm.FullName,
 		Gender:         reqForm.Gender,
 		CCCD:           reqForm.CCCD,
@@ -255,7 +267,7 @@ func (h *DormApplicationHandler) UpdateDormApplicationStatus(c *gin.Context) {
 			DormApplication: app,
 			Room:            req.RoomID,
 			Status:          "temporary", // models.ContractStatusTemporary
-			ImageBill:       "",          // chưa có hóa đơn
+			ImageBill:       sql.NullString{String: "", Valid: false}, // chưa có hóa đơn
 			MonthlyFee:      monthlyFee,
 			TotalAmount:     totalAmount,
 			StartDate:       &startDate,

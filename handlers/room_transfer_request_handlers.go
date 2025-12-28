@@ -51,7 +51,7 @@ func (h *RoomTransferRequestHandler) GetByID(c *gin.Context) {
 }
 
 func (h *RoomTransferRequestHandler) List(c *gin.Context) {
-	reqs, err := h.Repo.List(context.Background())
+	reqs, err := h.Repo.ListWithUsernames(context.Background())
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return

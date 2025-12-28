@@ -18,6 +18,7 @@ type Config struct {
 	Logging   logger.LogConfig `mapstructure:"logging"`
 	Cloudinary CloudinaryConfig `mapstructure:"cloudinary"`
 	WebSocket  WebSocketConfig  `mapstructure:"websocket"`
+	APIKey	 APIKeyConfig    	`mapstructure:"api_key"`	
 }
 
 type ServerConfig struct {
@@ -73,6 +74,9 @@ type WebSocketConfig struct {
 	PingPeriod int `mapstructure:"ping_period"` // in seconds
 }
 
+type APIKeyConfig struct {
+	ChatbotService string `mapstructure:"chatbot_service"`
+}
 
 
 

@@ -5,7 +5,7 @@ CREATE TABLE IF NOT EXISTS facility_complaints (
     title TEXT NOT NULL,
     description TEXT,
     proof TEXT,
-    status VARCHAR(10) NOT NULL DEFAULT 'pending', -- pending|accepted|rejected
+    status VARCHAR(50) NOT NULL DEFAULT 'pending', -- pending|accepted|rejected
     created_at TIMESTAMP DEFAULT now(),
     updated_at TIMESTAMP DEFAULT now()
 );

@@ -76,7 +76,10 @@ func SetupRoutes(router *gin.Engine, cfg *config.Config) {
 		electricBillComplaintRepo := repository.NewElectricBillComplaintRepository(database.GetDB())
 		electricBillComplaintHandler := handlers.NewElectricBillComplaintHandler(electricBillComplaintRepo, cfg)
 		facilityComplaintRepo := repository.NewFacilityComplaintRepository(database.GetDB())
-		facilityComplaintHandler := handlers.NewFacilityComplaintHandler(facilityComplaintRepo, cfg)
+		facilityComplaintHandler := handlers.NewFacilityComplaintHandler(facilityComplaintRepo, contractRepo, cfg)
+		roomTransferRequestHandler := handlers.NewRoomTransferRequestHandler(database.GetDB())
+		cancelRequestRepo := repository.NewContractCancelRequestRepository(database.GetDB())
+		cancelRequestHandler := handlers.NewContractCancelRequestHandler(cancelRequestRepo, contractRepo, userRepo, cfg)
 
 		backupRepo := repository.NewBackUpRepository(database.GetDB())
 		backupHandler := handlers.NewBackupHandler(cfg, backupRepo)
@@ -131,8 +134,11 @@ func SetupRoutes(router *gin.Engine, cfg *config.Config) {
 			// Facility Complaint APIs (protected)
 			v2.GET("/facility-complaints", facilityComplaintHandler.List)
 			v2.GET("/facility-complaints/:id", facilityComplaintHandler.GetByID)
+			v2.GET("/facility-complaints/me", facilityComplaintHandler.ListMyComplaints)
+			v2.GET("/facility-complaints/my-room", facilityComplaintHandler.ListMyRoomComplaints)
 			v2.POST("/facility-complaints", facilityComplaintHandler.Create)
 			v2.PATCH("/facility-complaints/:id", facilityComplaintHandler.Update)
+			v2.PATCH("/facility-complaints/:id/proof", facilityComplaintHandler.UpdateProof)
 			v2.DELETE("/facility-complaints/:id", facilityComplaintHandler.Delete)
 
 			// Electric Bill APIs (protected)
@@ -153,6 +159,20 @@ func SetupRoutes(router *gin.Engine, cfg *config.Config) {
 			v2.DELETE("/electric-bill-complaints/:id", electricBillComplaintHandler.Delete)
 
 			v2.PATCH("/electric-bills/:id/confirm-only", electricBillHandler.ConfirmOnlyByStudent)
+
+			// Room Transfer Request APIs (protected)
+			v2.GET("/room-transfer-requests", roomTransferRequestHandler.List)
+			v2.GET("/room-transfer-requests/:id", roomTransferRequestHandler.GetByID)
+			v2.POST("/room-transfer-requests", roomTransferRequestHandler.Create)
+			v2.PATCH("/room-transfer-requests/:id/peer-confirm", roomTransferRequestHandler.PeerConfirm)
+			v2.PATCH("/room-transfer-requests/:id/manager-confirm", roomTransferRequestHandler.ManagerConfirm)
+
+			// Contract Cancel Request APIs (protected)
+			v2.POST("/contract-cancel-requests", cancelRequestHandler.Create)
+			v2.GET("/contract-cancel-requests/me", cancelRequestHandler.ListMyRequests)
+			v2.GET("/contract-cancel-requests", cancelRequestHandler.ListAll)
+			v2.GET("/contract-cancel-requests/:id", cancelRequestHandler.GetByID)
+			v2.PATCH("/contract-cancel-requests/:id/verify", cancelRequestHandler.Verify)
 		}
 	}
 }

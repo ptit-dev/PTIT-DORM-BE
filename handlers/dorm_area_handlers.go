@@ -35,11 +35,18 @@ func (h *DormAreaHandler) CreateDormArea(c *gin.Context) {
 }
 
 func (h *DormAreaHandler) UpdateDormArea(c *gin.Context) {
+	id := c.Param("id")
+	if id == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "id is required in path"})
+		return
+	}
 	var area models.DormArea
 	if err := c.ShouldBindJSON(&area); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
+	// Đảm bảo luôn cập nhật theo id trên URL, không phụ thuộc body
+	area.ID = id
 	if err := h.Repo.Update(context.Background(), &area); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return

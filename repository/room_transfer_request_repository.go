@@ -15,7 +15,7 @@ func NewRoomTransferRequestRepository(db *sql.DB) *RoomTransferRequestRepository
 }
 
 func (r *RoomTransferRequestRepository) Create(ctx context.Context, req *models.RoomTransferRequest) error {
-	query := `INSERT INTO room_transfer_requests (id, requester_user_id, target_user_id, target_room_id, transfer_time, reason, peer_confirm_status, manager_confirm_status, created_at, updated_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)`
+	query := `INSERT INTO room_transfer_requests (id, requester_user_id, target_user_id, target_room_id, transfer_time, reason, peer_confirm_status, manager_confirm_status, created_at, updated_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`
 	_, err := r.DB.ExecContext(ctx, query,
 		req.ID, req.RequesterUserID, req.TargetUserID, req.TargetRoomID, req.TransferTime, req.Reason, req.PeerConfirmStatus, req.ManagerConfirmStatus, req.CreatedAt, req.UpdatedAt)
 	return err
@@ -47,6 +47,55 @@ func (r *RoomTransferRequestRepository) List(ctx context.Context) ([]models.Room
 			return nil, err
 		}
 		reqs = append(reqs, req)
+	}
+	return reqs, nil
+}
+
+// ListWithUsernames trả về danh sách kèm username của 2 user
+func (r *RoomTransferRequestRepository) ListWithUsernames(ctx context.Context) ([]models.RoomTransferRequestWithUsernames, error) {
+	query := `
+		SELECT
+			r.id,
+			r.requester_user_id,
+			u1.username AS requester_username,
+			r.target_user_id,
+			u2.username AS target_username,
+			r.target_room_id,
+			r.transfer_time,
+			r.reason,
+			r.peer_confirm_status,
+			r.manager_confirm_status,
+			r.created_at,
+			r.updated_at
+		FROM room_transfer_requests r
+		JOIN users u1 ON r.requester_user_id = u1.id
+		JOIN users u2 ON r.target_user_id = u2.id
+		ORDER BY r.created_at DESC`
+	rows, err := r.DB.QueryContext(ctx, query)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var reqs []models.RoomTransferRequestWithUsernames
+	for rows.Next() {
+		var item models.RoomTransferRequestWithUsernames
+		if err := rows.Scan(
+			&item.ID,
+			&item.RequesterUserID,
+			&item.RequesterUsername,
+			&item.TargetUserID,
+			&item.TargetUsername,
+			&item.TargetRoomID,
+			&item.TransferTime,
+			&item.Reason,
+			&item.PeerConfirmStatus,
+			&item.ManagerConfirmStatus,
+			&item.CreatedAt,
+			&item.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		reqs = append(reqs, item)
 	}
 	return reqs, nil
 }

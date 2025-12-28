@@ -1,3 +1,4 @@
+-- Active: 1766742740957@@ep-late-meadow-a1mou9r2-pooler.ap-southeast-1.aws.neon.tech@5432@neondb@public
 CREATE TABLE dorm_applications (
     id UUID PRIMARY KEY,
     student_id VARCHAR(32) NOT NULL,

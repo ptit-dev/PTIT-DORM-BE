@@ -124,3 +124,19 @@ type ApprovedContractSummary struct {
 	ContractID string `json:"contract_id"`
 	Room       string `json:"room"`
 }
+
+// Thông tin yêu cầu đổi phòng kèm username 2 sinh viên
+type RoomTransferRequestWithUsernames struct {
+	ID                   string `json:"id"`
+	RequesterUserID      string `json:"requester_user_id"`
+	RequesterUsername    string `json:"requester_username"`
+	TargetUserID         string `json:"target_user_id"`
+	TargetUsername       string `json:"target_username"`
+	TargetRoomID         string `json:"target_room_id"`
+	TransferTime         string `json:"transfer_time"`
+	Reason               string `json:"reason"`
+	PeerConfirmStatus    string `json:"peer_confirm_status"`
+	ManagerConfirmStatus string `json:"manager_confirm_status"`
+	CreatedAt            string `json:"created_at"`
+	UpdatedAt            string `json:"updated_at"`
+}
