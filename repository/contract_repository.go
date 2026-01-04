@@ -230,3 +230,17 @@ func (r *ContractRepository) GetResidentsFromApprovedContractsByRoom(ctx context
 	}
 	return residents, nil
 }
+
+// HasApprovedContractInRoom kiểm tra user (sinh viên) có hợp đồng approved tại một phòng cụ thể hay không
+func (r *ContractRepository) HasApprovedContractInRoom(ctx context.Context, userID string, room string) (bool, error) {
+	query := `SELECT 1 FROM contracts WHERE student_id = $1 AND room = $2 AND status = 'approved' LIMIT 1`
+	var tmp int
+	err := r.DB.QueryRowContext(ctx, query, userID, room).Scan(&tmp)
+	if err == sql.ErrNoRows {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	return true, nil
+}

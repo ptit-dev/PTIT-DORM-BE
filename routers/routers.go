@@ -32,6 +32,9 @@ func SetupRoutes(router *gin.Engine, cfg *config.Config) {
 	userHandler := handlers.NewUserHandler(cfg, userRepo)
 
 	WSService := service.NewWSService()
+	contractRepo := repository.NewContractRepository(database.GetDB())
+	chatbotRepo := repository.NewChatbotRepository(database.GetDB())
+	chatbotHandler := handlers.NewChatbotHandler(cfg, chatbotRepo)
 
 	// Auth routes
 	router.POST("/login", authHandler.LoginHandler)
@@ -51,8 +54,9 @@ func SetupRoutes(router *gin.Engine, cfg *config.Config) {
 	ws := router.Group("/ws/v1")
 	{
 		ws.Use(middleware.AuthenticateWS(cfg.JWT.Secret))
-		wsHandler := handlers.NewWSHandler(cfg, WSService)
+		wsHandler := handlers.NewWSHandler(cfg, WSService, contractRepo)
 		ws.GET("/admin-connect", wsHandler.HandleWSAdmin)
+		ws.GET("/chat", wsHandler.HandleWSChat)
 	}
 
 	v1 := router.Group("/api/v1")
@@ -64,7 +68,6 @@ func SetupRoutes(router *gin.Engine, cfg *config.Config) {
 		dormAreaHandler := handlers.NewDormAreaHandler(dormAreaRepo)
 		registrationPeriodRepo := repository.NewRegistrationPeriodRepository(database.GetDB())
 		registrationPeriodHandler := handlers.NewRegistrationPeriodHandler(registrationPeriodRepo)
-		contractRepo := repository.NewContractRepository(database.GetDB())
 		contractHandler := handlers.NewContractHandler(contractRepo, cfg)
 		managerRepo := repository.NewManagerRepository(database.GetDB(), cfg.Database.Schema)
 		managerHandler := handlers.NewManagerHandler(cfg, managerRepo, userRepo)
@@ -83,6 +86,9 @@ func SetupRoutes(router *gin.Engine, cfg *config.Config) {
 
 		backupRepo := repository.NewBackUpRepository(database.GetDB())
 		backupHandler := handlers.NewBackupHandler(cfg, backupRepo)
+
+		// Chatbot datasets for chatbot service (API key only)
+		v1.GET("/chatbot/datasets", chatbotHandler.GetDatasets)
 		// Đăng ký ký túc xá
 		v1.POST("/dorm-applications", dormAppHandler.CreateDormApplication)
 		v1.POST("/send-otp", mailHandler.SendOTPEmailHandler)

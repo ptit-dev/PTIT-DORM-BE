@@ -1,9 +1,12 @@
 name: Build Go EXE on GitHub, Deploy to Self-Hosted
 
 on:
-  push:
-    branches: ["main"]
   workflow_dispatch:
+    inputs:
+      ref:
+        description: "Git ref (branch, tag, or commit)"
+        required: true
+        default: "main"
 
 env:
   PROD_DIR: 'C:\Users\trong.ngovan\MyProject\BeDormPtit'
@@ -17,6 +20,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.ref }}
 
       - name: Set up Go
         uses: actions/setup-go@v4
