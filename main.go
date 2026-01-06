@@ -70,20 +70,15 @@ func main() {
 		logger.Fatal().Err(err).Msg("Failed to initialize Redis whitelist")
 	}
 
-
-	// Create Gin router
 	r := gin.New()
 
-	// Use middleware basic
 	r.Use(gin.Recovery())
 	r.Use(middleware.Logger())
 	r.Use(middleware.Cors)
 
-	// Setup routes with dependency injection
 	routes.SetupRoutes(r, cfg)
 
 
-	// Start server in a goroutine
 	addr := fmt.Sprintf("%s:%s", cfg.Server.Host, cfg.Server.Port)
 	logger.Info().Str("address", addr).Msg("Starting HTTP server")
 

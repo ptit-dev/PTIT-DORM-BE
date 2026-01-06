@@ -33,6 +33,64 @@ func (r *ChatbotRepository) GetPromptings(ctx context.Context) ([]map[string]int
 	return scanRowsToMap(rows)
 }
 
+// CreateDocument inserts a new record into chatbot.documents
+func (r *ChatbotRepository) CreateDocument(ctx context.Context, id, description, content string) error {
+	_, err := r.db.ExecContext(ctx,
+		`INSERT INTO chatbot.documents (id, description, content, created_at, updated_at)
+		 VALUES ($1, $2, $3, NOW(), NOW())`,
+		id, description, content,
+	)
+	return err
+}
+
+// UpdateDocument updates description and content of an existing document
+func (r *ChatbotRepository) UpdateDocument(ctx context.Context, id, description, content string) error {
+	_, err := r.db.ExecContext(ctx,
+		`UPDATE chatbot.documents
+		   SET description = $2,
+		       content = $3,
+		       updated_at = NOW()
+		 WHERE id = $1`,
+		id, description, content,
+	)
+	return err
+}
+
+// DeleteDocument removes a document by id
+func (r *ChatbotRepository) DeleteDocument(ctx context.Context, id string) error {
+	_, err := r.db.ExecContext(ctx, `DELETE FROM chatbot.documents WHERE id = $1`, id)
+	return err
+}
+
+// CreatePrompting inserts a new record into chatbot.prompting
+func (r *ChatbotRepository) CreatePrompting(ctx context.Context, id, ptype, content string) error {
+	_, err := r.db.ExecContext(ctx,
+		`INSERT INTO chatbot.prompting (id, type, content, created_at, updated_at)
+		 VALUES ($1, $2, $3, NOW(), NOW())`,
+		id, ptype, content,
+	)
+	return err
+}
+
+// UpdatePrompting updates type and content of an existing prompting
+func (r *ChatbotRepository) UpdatePrompting(ctx context.Context, id, ptype, content string) error {
+	_, err := r.db.ExecContext(ctx,
+		`UPDATE chatbot.prompting
+		   SET type = $2,
+		       content = $3,
+		       updated_at = NOW()
+		 WHERE id = $1`,
+		id, ptype, content,
+	)
+	return err
+}
+
+// DeletePrompting removes a prompting by id
+func (r *ChatbotRepository) DeletePrompting(ctx context.Context, id string) error {
+	_, err := r.db.ExecContext(ctx, `DELETE FROM chatbot.prompting WHERE id = $1`, id)
+	return err
+}
+
 // scanRowsToMap converts sql.Rows to []map[string]interface{} generically
 func scanRowsToMap(rows *sql.Rows) ([]map[string]interface{}, error) {
 	columns, err := rows.Columns()

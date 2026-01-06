@@ -41,6 +41,7 @@ func SetupRoutes(router *gin.Engine, cfg *config.Config) {
 	router.POST("/refresh", authHandler.RefreshHandler)
 	router.POST("/logout", authHandler.LogoutHandler)
 	router.POST("/logout-all", authHandler.LogoutAllSessionsHandler)
+	router.GET("/api/chatbot/initialize", chatbotHandler.GetDatasets)
 
 	testHandler := handlers.NewTestHandler(cfg, userRepo)
 	test := router.Group("/api/test")
@@ -87,8 +88,6 @@ func SetupRoutes(router *gin.Engine, cfg *config.Config) {
 		backupRepo := repository.NewBackUpRepository(database.GetDB())
 		backupHandler := handlers.NewBackupHandler(cfg, backupRepo)
 
-		// Chatbot datasets for chatbot service (API key only)
-		v1.GET("/chatbot/datasets", chatbotHandler.GetDatasets)
 		// Đăng ký ký túc xá
 		v1.POST("/dorm-applications", dormAppHandler.CreateDormApplication)
 		v1.POST("/send-otp", mailHandler.SendOTPEmailHandler)
@@ -97,6 +96,17 @@ func SetupRoutes(router *gin.Engine, cfg *config.Config) {
 		v2 := v1.Group("/protected")
 		{
 			v2.Use(middleware.Authentication(cfg.JWT.Secret))
+			v2.POST("/chatbot/sync-dataset", chatbotHandler.SyncDataset)
+			// Admin management for chatbot documents & prompting
+			v2.GET("/chatbot/documents", chatbotHandler.ListDocuments)
+			v2.POST("/chatbot/documents", chatbotHandler.CreateDocument)
+			v2.PUT("/chatbot/documents/:id", chatbotHandler.UpdateDocument)
+			v2.DELETE("/chatbot/documents/:id", chatbotHandler.DeleteDocument)
+
+			v2.GET("/chatbot/prompting", chatbotHandler.ListPromptings)
+			v2.POST("/chatbot/prompting", chatbotHandler.CreatePrompting)
+			v2.PUT("/chatbot/prompting/:id", chatbotHandler.UpdatePrompting)
+			v2.DELETE("/chatbot/prompting/:id", chatbotHandler.DeletePrompting)
 			// api to backupdata for admin_system
 			v2.GET("/backup-data", backupHandler.BackUpData)
 			// Đổi avatar và mật khẩu cho user hiện tại

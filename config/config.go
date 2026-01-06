@@ -4,21 +4,23 @@ import (
 	"Backend_Dorm_PTIT/logger"
 	"fmt"
 	"strings"
+
 	"github.com/spf13/viper"
 )
 
 // Config represents the application configuration
 type Config struct {
-	Server    ServerConfig     `mapstructure:"server"`
-	Database  DatabaseConfig   `mapstructure:"database"`
-	CORS      CORSConfig       `mapstructure:"cors"`
-	JWT       JWTConfig        `mapstructure:"jwt"`
-	Redis     RedisConfig      `mapstructure:"redis"`
+	Server     ServerConfig     `mapstructure:"server"`
+	Database   DatabaseConfig   `mapstructure:"database"`
+	CORS       CORSConfig       `mapstructure:"cors"`
+	JWT        JWTConfig        `mapstructure:"jwt"`
+	Redis      RedisConfig      `mapstructure:"redis"`
 	MailGoogle MailGoogleConfig `mapstructure:"mail_google"`
-	Logging   logger.LogConfig `mapstructure:"logging"`
+	Logging    logger.LogConfig `mapstructure:"logging"`
 	Cloudinary CloudinaryConfig `mapstructure:"cloudinary"`
 	WebSocket  WebSocketConfig  `mapstructure:"websocket"`
-	APIKey	 APIKeyConfig    	`mapstructure:"api_key"`	
+	APIKey     APIKeyConfig     `mapstructure:"api_key"`
+	Chatbot    ChatbotConfig    `mapstructure:"chatbot"`
 }
 
 type ServerConfig struct {
@@ -40,26 +42,25 @@ type RedisConfig struct {
 }
 
 type CloudinaryConfig struct {
-	Apikey   string `mapstructure:"apikey"`
-	Secret   string `mapstructure:"secret"`
+	Apikey    string `mapstructure:"apikey"`
+	Secret    string `mapstructure:"secret"`
 	CloudName string `mapstructure:"cloudname"`
 }
 type MailGoogleConfig struct {
-	Host	 string `mapstructure:"host"`
+	Host     string `mapstructure:"host"`
 	Port     string `mapstructure:"port"`
 	Email    string `mapstructure:"email"`
 	Password string `mapstructure:"password"`
 }
 
-
 type DatabaseConfig struct {
-	Host            string `mapstructure:"host"`
-	Port            string `mapstructure:"port"`
-	UserName        string `mapstructure:"username"`
-	Password        string `mapstructure:"password"`
-	Name            string `mapstructure:"name"`
-	SSLMode         string `mapstructure:"sslmode"`
-	Schema          string `mapstructure:"schema"`
+	Host     string `mapstructure:"host"`
+	Port     string `mapstructure:"port"`
+	UserName string `mapstructure:"username"`
+	Password string `mapstructure:"password"`
+	Name     string `mapstructure:"name"`
+	SSLMode  string `mapstructure:"sslmode"`
+	Schema   string `mapstructure:"schema"`
 }
 
 type CORSConfig struct {
@@ -78,7 +79,10 @@ type APIKeyConfig struct {
 	ChatbotService string `mapstructure:"chatbot_service"`
 }
 
-
+// ChatbotConfig contains config for external chatbot service
+type ChatbotConfig struct {
+	BaseURL string `mapstructure:"base_url"` // e.g. https://chatbot.example.com
+}
 
 func LoadConfig(cfgFile string) (*Config, error) {
 	// Use specific config file if provided

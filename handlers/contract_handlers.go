@@ -147,7 +147,7 @@ func (h *ContractHandler) GetAllContracts(c *gin.Context) {
 		if ok {
 			for _, r := range roles {
 				roleStr, ok := r.(string)
-				if ok && (roleStr == "manager" || roleStr == "admin_system") {
+				if ok && (roleStr == "manager" || roleStr == "admin_system" || roleStr == "non-manager") {
 					isManager = true
 					break
 				}
@@ -182,7 +182,7 @@ func (h *ContractHandler) GetApprovedContracts(c *gin.Context) {
 		if ok {
 			for _, r := range roles {
 				roleStr, ok := r.(string)
-				if ok && (roleStr == "manager" || roleStr == "admin_system") {
+				if ok && (roleStr == "manager" || roleStr == "admin_system" || roleStr == "non-manager") {
 					isManager = true
 					break
 				}
