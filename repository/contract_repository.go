@@ -244,3 +244,44 @@ func (r *ContractRepository) HasApprovedContractInRoom(ctx context.Context, user
 	}
 	return true, nil
 }
+
+// FinishContract set contract status = "finished"
+func (r *ContractRepository) FinishContract(ctx context.Context, contractID string, reason string) error {
+	query := `UPDATE contracts SET status = 'finished', note = COALESCE(note, '') || ' | Kết thúc: ' || $1, updated_at = NOW() WHERE id = $2`
+	_, err := r.DB.ExecContext(ctx, query, reason, contractID)
+	return err
+}
+
+// GetContractByID lấy hợp đồng theo ID
+func (r *ContractRepository) GetContractByID(ctx context.Context, contractID string) (*models.Contract, error) {
+	query := `SELECT 
+		c.id, c.student_id, c.dorm_application_id, c.room, c.status, c.image_bill, c.monthly_fee, c.total_amount, c.start_date, c.end_date, c.status_payment, c.created_at, c.updated_at, c.note
+	FROM contracts c
+	WHERE c.id = $1`
+	row := r.DB.QueryRowContext(ctx, query, contractID)
+	var contract models.Contract
+	var dormAppID sql.NullString
+	err := row.Scan(
+		&contract.ID,
+		&contract.StudentID,
+		&dormAppID,
+		&contract.Room,
+		&contract.Status,
+		&contract.ImageBill,
+		&contract.MonthlyFee,
+		&contract.TotalAmount,
+		&contract.StartDate,
+		&contract.EndDate,
+		&contract.StatusPayment,
+		&contract.CreatedAt,
+		&contract.UpdatedAt,
+		&contract.Note,
+	)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil, nil
+		}
+		return nil, err
+	}
+	return &contract, nil
+}

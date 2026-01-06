@@ -1,8 +1,9 @@
 package models
 
 import (
-	"time"
 	"database/sql"
+	"time"
+
 	"github.com/google/uuid"
 )
 
@@ -12,6 +13,7 @@ const (
 	ContractStatusTemporary ContractStatus = "temporary"
 	ContractStatusApproved  ContractStatus = "approved"
 	ContractStatusCanceled  ContractStatus = "canceled"
+	ContractStatusFinished  ContractStatus = "finished"
 )
 
 type PaymentStatus string
@@ -20,6 +22,7 @@ const (
 	PaymentStatusPaid   PaymentStatus = "paid"
 	PaymentStatusUnpaid PaymentStatus = "unpaid"
 )
+
 type Contract struct {
 	ID              uuid.UUID        `json:"id" gorm:"type:uuid;primaryKey"`
 	StudentID       string           `json:"student_id" gorm:"index"`

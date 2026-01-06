@@ -175,3 +175,60 @@ func (r *DormApplicationRepository) GetByStudentIDWithRoles(ctx context.Context,
 	// Đã tồn tại user và có role student, không trả về thông tin chi tiết
 	return nil, nil
 }
+
+// CheckStudentRoleByEmail kiểm tra email đó có user với role "student" không
+func (r *DormApplicationRepository) CheckStudentRoleByEmail(ctx context.Context, email string) (bool, error) {
+	var userID string
+	err := r.DB.QueryRowContext(ctx, `SELECT id FROM users WHERE email = $1`, email).Scan(&userID)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return false, nil // email chưa có user
+		}
+		return false, err
+	}
+
+	// Kiểm tra user có role "student" chưa
+	var hasRole bool
+	query := `SELECT EXISTS(
+		SELECT 1 FROM user_roles ur
+		JOIN roles r ON ur.role_id = r.id
+		WHERE ur.user_id = $1 AND r.name = 'student'
+	)`
+	err = r.DB.QueryRowContext(ctx, query, userID).Scan(&hasRole)
+	if err != nil {
+		return false, err
+	}
+	return hasRole, nil
+}
+
+// GetStudentIDByEmail lấy userID của student từ email
+func (r *DormApplicationRepository) GetStudentIDByEmail(ctx context.Context, email string) (string, error) {
+	var userID string
+	err := r.DB.QueryRowContext(ctx, `SELECT id FROM users WHERE email = $1`, email).Scan(&userID)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return "", nil // email chưa có user
+		}
+		return "", err
+	}
+	return userID, nil
+}
+
+// UpdateStudentFromApplication cập nhật student record từ application info
+func (r *DormApplicationRepository) UpdateStudentFromApplication(ctx context.Context, app *models.DormApplication, userID string) error {
+	query := `UPDATE students SET fullname = $1, phone = $2, cccd = $3, dob = $4, avatar = $5, province = $6, type = $7, course = $8, major = $9, class = $10 WHERE id = $11`
+	_, err := r.DB.ExecContext(ctx, query,
+		app.FullName,
+		app.Phone,
+		app.CCCD,
+		app.DOB,
+		app.AvatarFront,
+		app.Hometown,
+		app.AdmissionType,
+		app.Course,
+		app.Faculty,
+		app.Class,
+		userID,
+	)
+	return err
+}

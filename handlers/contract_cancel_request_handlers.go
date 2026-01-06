@@ -229,13 +229,14 @@ func (h *ContractCancelRequestHandler) Verify(c *gin.Context) {
 		return
 	}
 	if input.Status == "approved" {
-		// Update contract status to canceled
-		if err := h.ContractRepo.VerifyContract(context.Background(), req.ContractID, "canceled", input.ManagerNote); err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to cancel contract", "details": err.Error()})
+		ctx := context.Background()
+		// Kết thúc hợp đồng giống logic API /contracts/:id/finish
+		if err := h.ContractRepo.FinishContract(ctx, req.ContractID, req.Reason); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to finish contract from cancel request", "details": err.Error()})
 			return
 		}
-		// Switch user role to guest
-		if err := h.UserRepo.SetUserRoleByName(context.Background(), req.StudentID, "guest"); err != nil {
+		// Switch user role to guest (hủy/kết thúc hợp đồng -> trở về guest)
+		if err := h.UserRepo.SetUserRoleByName(ctx, req.StudentID, "guest"); err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to update user role to guest", "details": err.Error()})
 			return
 		}

@@ -70,6 +70,7 @@ func SetupRoutes(router *gin.Engine, cfg *config.Config) {
 		registrationPeriodRepo := repository.NewRegistrationPeriodRepository(database.GetDB())
 		registrationPeriodHandler := handlers.NewRegistrationPeriodHandler(registrationPeriodRepo)
 		contractHandler := handlers.NewContractHandler(contractRepo, cfg)
+		contractHandler.UserRepo = userRepo
 		managerRepo := repository.NewManagerRepository(database.GetDB(), cfg.Database.Schema)
 		managerHandler := handlers.NewManagerHandler(cfg, managerRepo, userRepo)
 
@@ -124,6 +125,7 @@ func SetupRoutes(router *gin.Engine, cfg *config.Config) {
 			v2.GET("/contracts", contractHandler.GetAllContracts)
 			v2.GET("/contracts/approved", contractHandler.GetApprovedContracts)
 			v2.PATCH("/contracts/:id/verify", contractHandler.VerifyContract)
+			v2.PATCH("/contracts/:id/finish", contractHandler.FinishContract)
 			v2.GET("/residents", contractHandler.GetResidentsByRoom)
 			v2.GET("/dorm-applications", dormAppHandler.GetAllDormApplications)
 			v2.PATCH("/dorm-applications/:id/status", dormAppHandler.UpdateDormApplicationStatus)

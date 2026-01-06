@@ -14,8 +14,9 @@ import (
 )
 
 type ContractHandler struct {
-	Repo *repository.ContractRepository
-	cfg  *config.Config
+	Repo     *repository.ContractRepository
+	UserRepo *repository.UserRepository
+	cfg      *config.Config
 }
 
 func NewContractHandler(repo *repository.ContractRepository, cfg *config.Config) *ContractHandler {
@@ -284,4 +285,79 @@ func (h *ContractHandler) GetResidentsByRoom(c *gin.Context) {
 		return
 	}
 	c.JSON(200, gin.H{"ok": true, "data": residents})
+}
+
+// PATCH /api/v1/protected/contracts/:id/finish (manager/admin)
+// Kết thúc hợp đồng: set status = "finished" và chuyển user role sang guest
+type finishContractRequest struct {
+	Reason string `json:"reason" binding:"required"`
+}
+
+func (h *ContractHandler) FinishContract(c *gin.Context) {
+	claimsAny, exists := c.Get("user")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"ok": false, "error": "Unauthorized, missing user claims"})
+		return
+	}
+	claims := claimsAny.(jwt.MapClaims)
+	rolesAny := claims["roles"]
+	var isManager bool
+	if rolesAny != nil {
+		roles, ok := rolesAny.([]interface{})
+		if ok {
+			for _, r := range roles {
+				roleStr, ok := r.(string)
+				if ok && (roleStr == "manager" || roleStr == "admin_system") {
+					isManager = true
+					break
+				}
+			}
+		}
+	}
+	if !isManager {
+		c.JSON(http.StatusUnauthorized, gin.H{"ok": false, "error": "Unauthorized, you do not have the required permissions"})
+		return
+	}
+
+	contractID := c.Param("id")
+	var req finishContractRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request", "details": err.Error()})
+		return
+	}
+
+	ctx := context.Background()
+
+	// Lấy hợp đồng
+	contract, err := h.Repo.GetContractByID(ctx, contractID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"ok": false, "error": "failed to get contract", "details": err.Error()})
+		return
+	}
+	if contract == nil {
+		c.JSON(http.StatusNotFound, gin.H{"ok": false, "error": "contract not found"})
+		return
+	}
+
+	// Check contract status là "approved"
+	if string(contract.Status) != "approved" {
+		c.JSON(http.StatusBadRequest, gin.H{"ok": false, "error": "Only approved contracts can be finished"})
+		return
+	}
+
+	// 1. Set contract status = "finished"
+	err = h.Repo.FinishContract(ctx, contractID, req.Reason)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"ok": false, "error": "failed to finish contract", "details": err.Error()})
+		return
+	}
+
+	// 2. Chuyển user role sang guest
+	err = h.UserRepo.SetUserRoleByName(ctx, contract.StudentID, "guest")
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"ok": false, "error": "failed to set user role to guest", "details": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"ok": true, "message": "Hợp đồng đã kết thúc", "contract_id": contractID})
 }

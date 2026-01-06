@@ -8,10 +8,11 @@ import (
 	"Backend_Dorm_PTIT/repository"
 	"Backend_Dorm_PTIT/utils"
 	"context"
+	"database/sql"
 	"net/http"
 	"strings"
 	"time"
-    "database/sql"
+
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
@@ -72,6 +73,18 @@ func (h *DormApplicationHandler) CreateDormApplication(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"ok": false, "error": "failed to check existing student ID", "details": err.Error()})
 		return
 	}
+
+	hasStudentRole, err := h.Repo.CheckStudentRoleByEmail(context.Background(), reqForm.Email)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"ok": false, "error": "failed to check email", "details": err.Error()})
+		return
+	}
+	if hasStudentRole {
+		c.JSON(http.StatusConflict, gin.H{"ok": false, "error": "Email đã được sử dụng cho tài khoản sinh viên nội trú"})
+		return
+	}
+	// Nếu email là guest hoặc chưa có user -> cho phép đăng ký
+
 	// Kiểm tra các trường bắt buộc (trừ priority_proof, notes, status)
 	requiredFields := map[string]string{
 		"student_id":       reqForm.StudentID,
@@ -102,7 +115,6 @@ func (h *DormApplicationHandler) CreateDormApplication(c *gin.Context) {
 			return
 		}
 	}
-
 
 	req := models.DormApplication{
 		StudentID:      upperStudentID,
@@ -217,62 +229,102 @@ func (h *DormApplicationHandler) UpdateDormApplicationStatus(c *gin.Context) {
 			c.JSON(http.StatusNotFound, gin.H{"error": "application not found"})
 			return
 		}
-		// 2. Tạo user (nếu chưa có)
-		username := app.StudentID
-		password := utils.GenerateStrongPassword(12)
-		passwordHash, err := utils.HashPassword(password)
+
+		var userID string
+		var password string
+		var emailSubject string
+		var emailBody string
+
+		// Check email có user rồi không
+		existingUserID, err := h.Repo.GetStudentIDByEmail(context.Background(), app.Email)
 		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to hash password", "details": err.Error()})
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to check email", "details": err.Error()})
 			return
 		}
-		userID := uuid.New().String()
-		user := &models.User{
-			ID:           userID,
-			Email:        app.Email,
-			Username:     username,
-			PasswordHash: passwordHash,
-			Status:       "non-active",
-			CreatedAt:    time.Now(),
-			UpdatedAt:    time.Now(),
+
+		if existingUserID == "" {
+			// Case 1: Email chưa có user -> Tạo user mới + role student
+			password = utils.GenerateStrongPassword(12)
+			passwordHash, err := utils.HashPassword(password)
+			if err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to hash password", "details": err.Error()})
+				return
+			}
+			userID = uuid.New().String()
+			user := &models.User{
+				ID:           userID,
+				Email:        app.Email,
+				Username:     app.StudentID,
+				PasswordHash: passwordHash,
+				Status:       "non-active",
+				CreatedAt:    time.Now(),
+				UpdatedAt:    time.Now(),
+			}
+			err = h.Repo.CreateUser(context.Background(), user)
+			if err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to create user", "details": err.Error()})
+				return
+			}
+			// Gán role student
+			err = h.Repo.AssignStudentRole(context.Background(), userID)
+			if err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to assign student role", "details": err.Error()})
+				return
+			}
+			// Tạo student
+			err = h.Repo.CreateStudentFromApplication(context.Background(), app, userID)
+			if err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to create student", "details": err.Error()})
+				return
+			}
+			// Email: tài khoản mới tạo
+			emailSubject = "Thông tin tài khoản ký túc xá"
+			emailBody = "Chào bạn,\n\nTài khoản ký túc xá của bạn đã được tạo thành công.\nTài khoản: " + app.StudentID + "\nMật khẩu: " + password + "\nVui lòng đăng nhập và xác nhận hợp đồng + thanh toán sau khi nhận được email này.\n\nTrân trọng."
+		} else {
+			// Case 2: Email có user rồi (guest) -> Chuyển role + update student record
+			userID = existingUserID
+			// Chuyển role sang student
+			err = h.Repo.AssignStudentRole(context.Background(), userID)
+			if err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to assign student role", "details": err.Error()})
+				return
+			}
+			// Update student record nếu tồn tại, hoặc tạo mới
+			err = h.Repo.UpdateStudentFromApplication(context.Background(), app, userID)
+			if err != nil {
+				// Nếu update fail (student record chưa tồn tại), thì tạo mới
+				err2 := h.Repo.CreateStudentFromApplication(context.Background(), app, userID)
+				if err2 != nil {
+					c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to create/update student", "details": err2.Error()})
+					return
+				}
+			}
+			// Email: tài khoản đã kích hoạt (không gửi mật khẩu)
+			emailSubject = "Tài khoản đã được kích hoạt"
+			emailBody = "Chào bạn,\n\nTài khoản của bạn đã được kích hoạt lên quyền sinh viên nội trú.\nVui lòng đăng nhập để xác nhận hợp đồng và thanh toán.\n\nTrân trọng."
 		}
-		err = h.Repo.CreateUser(context.Background(), user)
-		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to create user", "details": err.Error()})
-			return
-		}
-		// 3. Gán role student, tạo user_role
-		err = h.Repo.AssignStudentRole(context.Background(), userID)
-		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to assign student role", "details": err.Error()})
-			return
-		}
-		// 4.1. Tạo student
-		err = h.Repo.CreateStudentFromApplication(context.Background(), app, userID)
-		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to create student", "details": err.Error()})
-			return
-		}
-		// 4.2 Thêm người bảo lãnh (Bố) cho sinh viên nếu có thông tin
+
+		// Thêm người bảo lãnh nếu có
 		_ = h.Repo.AddGuardianToStudent(context.Background(), userID, app.GuardianName, app.GuardianPhone)
 
-		// 5. Tạo hợp đồng tạm thời với đầy đủ trường hợp đồng
+		// Tạo hợp đồng tạm thời
 		now := time.Now()
 		startDate := now
 		endDate := now.AddDate(0, 6, 0) // hợp đồng 6 tháng
-		monthlyFee := 1000000.0         // 1 triệu/tháng (float64)
-		totalAmount := monthlyFee * 6.0 // tổng tiền 6 tháng (float64)
+		monthlyFee := 1000000.0         // 1 triệu/tháng
+		totalAmount := monthlyFee * 6.0 // tổng tiền 6 tháng
 		contract := &models.Contract{
 			ID:              uuid.New(),
 			StudentID:       userID,
 			DormApplication: app,
 			Room:            req.RoomID,
-			Status:          "temporary", // models.ContractStatusTemporary
-			ImageBill:       sql.NullString{String: "", Valid: false}, // chưa có hóa đơn
+			Status:          "temporary",
+			ImageBill:       sql.NullString{String: "", Valid: false},
 			MonthlyFee:      monthlyFee,
 			TotalAmount:     totalAmount,
 			StartDate:       &startDate,
 			EndDate:         &endDate,
-			StatusPayment:   "unpaid", // models.PaymentStatusUnpaid
+			StatusPayment:   "unpaid",
 			CreatedAt:       now,
 			UpdatedAt:       now,
 			Note:            "Tự động tạo khi duyệt đơn",
@@ -282,15 +334,13 @@ func (h *DormApplicationHandler) UpdateDormApplicationStatus(c *gin.Context) {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to create contract", "details": err.Error()})
 			return
 		}
-		// 6. Gửi mail thông tin tài khoản
+
+		// Gửi mail
 		smtpHost := h.config.MailGoogle.Host
 		smtpPort := h.config.MailGoogle.Port
 		sender := h.config.MailGoogle.Email
 		passwordMail := h.config.MailGoogle.Password
-		recipient := app.Email
-		subject := "Thông tin tài khoản ký túc xá"
-		body := "Chào bạn,\n\nTài khoản ký túc xá của bạn đã được tạo thành công.\nTài khoản: " + username + "\nMật khẩu: " + password + "\nVui lòng đăng nhập và đổi mật khẩu sau khi nhận được email này.\n\nTrân trọng."
-		_ = utils.SendMail(smtpHost, smtpPort, sender, passwordMail, recipient, subject, body)
+		_ = utils.SendMail(smtpHost, smtpPort, sender, passwordMail, app.Email, emailSubject, emailBody)
 	}
 	// Cập nhật status đơn nguyện vọng
 	err := h.Repo.UpdateStatus(context.Background(), id, req.Status)
