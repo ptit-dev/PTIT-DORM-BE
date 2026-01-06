@@ -7,6 +7,7 @@ import (
 	"Backend_Dorm_PTIT/utils"
 	"context"
 	"net/http"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v5"
@@ -63,12 +64,16 @@ func (h *ContractHandler) GetMyRoomMembers(c *gin.Context) {
 		c.JSON(http.StatusUnauthorized, gin.H{"ok": false, "error": "Unauthorized, missing user_id"})
 		return
 	}
-	contracts, err := h.Repo.GetContractByStudentID(context.Background(), userID)
+	// Create context with timeout
+	ctx, cancel := context.WithTimeout(c.Request.Context(), 10*time.Second)
+	defer cancel()
+
+	contracts, err := h.Repo.GetContractByStudentID(ctx, userID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"ok": false, "error": "failed to get contracts", "details": err.Error()})
 		return
 	}
-	if contracts == nil || len(contracts) == 0 {
+	if len(contracts) == 0 {
 		c.JSON(http.StatusNotFound, gin.H{"ok": false, "error": "No contract found for this student"})
 		return
 	}
@@ -83,7 +88,7 @@ func (h *ContractHandler) GetMyRoomMembers(c *gin.Context) {
 		c.JSON(http.StatusNotFound, gin.H{"ok": false, "error": "No approved contract with room found for this student"})
 		return
 	}
-	residents, err := h.Repo.GetResidentsFromApprovedContractsByRoom(context.Background(), room)
+	residents, err := h.Repo.GetResidentsFromApprovedContractsByRoom(ctx, room)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"ok": false, "error": "failed to get room members", "details": err.Error()})
 		return

@@ -110,7 +110,19 @@ func (h *ElectricBillHandler) ListByMyRoom(c *gin.Context) {
 		c.JSON(http.StatusNotFound, gin.H{"error": "No contract found for this student"})
 		return
 	}
-	room := contracts[0].Room
+	// Tìm hợp đồng được phê duyệt
+	var approvedContract *models.Contract
+	for _, contract := range contracts {
+		if contract.Status == models.ContractStatusApproved {
+			approvedContract = contract
+			break
+		}
+	}
+	if approvedContract == nil {
+		c.JSON(http.StatusForbidden, gin.H{"error": "No approved contract found for this student"})
+		return
+	}
+	room := approvedContract.Room
 	if room == "" {
 		c.JSON(http.StatusNotFound, gin.H{"error": "No room found in contract"})
 		return
@@ -144,7 +156,19 @@ func (h *ElectricBillHandler) ConfirmOnlyByStudent(c *gin.Context) {
 		c.JSON(http.StatusNotFound, gin.H{"error": "No contract found for this student"})
 		return
 	}
-	room := contracts[0].Room
+	// Tìm hợp đồng được phê duyệt
+	var approvedContract *models.Contract
+	for _, contract := range contracts {
+		if contract.Status == models.ContractStatusApproved {
+			approvedContract = contract
+			break
+		}
+	}
+	if approvedContract == nil {
+		c.JSON(http.StatusForbidden, gin.H{"error": "No approved contract found for this student"})
+		return
+	}
+	room := approvedContract.Room
 	if room == "" {
 		c.JSON(http.StatusNotFound, gin.H{"error": "No room found in contract"})
 		return
@@ -190,7 +214,19 @@ func (h *ElectricBillHandler) ConfirmByStudent(c *gin.Context) {
 		c.JSON(http.StatusNotFound, gin.H{"error": "No contract found for this student"})
 		return
 	}
-	room := contracts[0].Room
+	// Tìm hợp đồng được phê duyệt
+	var approvedContract *models.Contract
+	for _, contract := range contracts {
+		if contract.Status == models.ContractStatusApproved {
+			approvedContract = contract
+			break
+		}
+	}
+	if approvedContract == nil {
+		c.JSON(http.StatusForbidden, gin.H{"error": "No approved contract found for this student"})
+		return
+	}
+	room := approvedContract.Room
 	if room == "" {
 		c.JSON(http.StatusNotFound, gin.H{"error": "No room found in contract"})
 		return

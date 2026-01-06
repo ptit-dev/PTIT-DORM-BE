@@ -1,10 +1,11 @@
 package database
 
 import (
-	"database/sql"
 	"Backend_Dorm_PTIT/config"
 	"Backend_Dorm_PTIT/logger"
+	"database/sql"
 	"fmt"
+	"time"
 
 	_ "github.com/lib/pq"
 )
@@ -29,6 +30,12 @@ func InitDatabase(cfg *config.DatabaseConfig) error {
 		return fmt.Errorf("failed to open database: %w", err)
 	}
 
+	// Configure connection pool
+	DB.SetMaxOpenConns(25)
+	DB.SetMaxIdleConns(10)
+	DB.SetConnMaxLifetime(5 * time.Minute)
+	DB.SetConnMaxIdleTime(2 * time.Minute)
+
 	schema := cfg.Schema
 	_, err = DB.Exec(fmt.Sprintf(`CREATE SCHEMA IF NOT EXISTS %s`, schema))
 	if err != nil {
@@ -48,11 +55,8 @@ func InitDatabase(cfg *config.DatabaseConfig) error {
 		return fmt.Errorf("failed to connect to database: %w", err)
 	}
 
-
 	logger.Info().
 		Msg("Database connected successfully")
-
-
 
 	return nil
 }
