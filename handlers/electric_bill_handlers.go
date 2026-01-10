@@ -26,12 +26,49 @@ func NewElectricBillHandler(repo *repository.ElectricBillRepository, cfg *config
 	}
 }
 
+// calculateElectricAmount tính tiền điện theo bậc thang:
+// - 100 số đầu: miễn phí
+// - Từ 101 đến 150: 2.000đ / số
+// - Từ 151 trở lên: 3.000đ / số
+func calculateElectricAmount(prev, curr int) int {
+	usage := curr - prev
+	if usage <= 0 {
+		return 0
+	}
+
+	// Số kWh trong từng bậc
+	tier2 := 0 // 101-150
+	tier3 := 0 // 151+
+
+	if usage > 100 {
+		// Lượng dùng vượt quá 100 số đầu
+		tier2 = usage - 100
+		if tier2 > 50 {
+			// Tối đa 50 số ở bậc 2 (101-150)
+			tier3 = tier2 - 50
+			tier2 = 50
+		}
+	}
+
+	amount := tier2*2000 + tier3*3000
+	if amount < 0 {
+		return 0
+	}
+	return amount
+}
+
 func (h *ElectricBillHandler) Create(c *gin.Context) {
 	var req models.ElectricBill
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
+	if req.CurrElectric < req.PrevElectric {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "curr_electric must be greater than or equal to prev_electric"})
+		return
+	}
+	// BE tự tính tiền điện theo bậc thang, không tin amount gửi từ FE
+	req.Amount = calculateElectricAmount(req.PrevElectric, req.CurrElectric)
 	req.ID = uuid.New().String()
 	req.CreatedAt = time.Now()
 	req.UpdatedAt = time.Now()
@@ -71,6 +108,12 @@ func (h *ElectricBillHandler) Update(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
+	if req.CurrElectric < req.PrevElectric {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "curr_electric must be greater than or equal to prev_electric"})
+		return
+	}
+	// Cập nhật lại amount theo số điện mới
+	req.Amount = calculateElectricAmount(req.PrevElectric, req.CurrElectric)
 	req.ID = id
 	req.UpdatedAt = time.Now()
 	if err := h.Repo.Update(context.Background(), &req); err != nil {

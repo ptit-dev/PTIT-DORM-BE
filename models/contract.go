@@ -14,6 +14,7 @@ const (
 	ContractStatusApproved  ContractStatus = "approved"
 	ContractStatusCanceled  ContractStatus = "canceled"
 	ContractStatusFinished  ContractStatus = "finished"
+	ContractStatusExpired   ContractStatus = "expired"
 )
 
 type PaymentStatus string

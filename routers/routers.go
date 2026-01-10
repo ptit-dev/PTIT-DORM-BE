@@ -41,6 +41,7 @@ func SetupRoutes(router *gin.Engine, cfg *config.Config) {
 	router.POST("/refresh", authHandler.RefreshHandler)
 	router.POST("/logout", authHandler.LogoutHandler)
 	router.POST("/logout-all", authHandler.LogoutAllSessionsHandler)
+	router.POST("/oauth/microsoft/callback", authHandler.MicrosoftOAuthCallback)
 	router.GET("/api/chatbot/initialize", chatbotHandler.GetDatasets)
 
 	testHandler := handlers.NewTestHandler(cfg, userRepo)
@@ -126,6 +127,7 @@ func SetupRoutes(router *gin.Engine, cfg *config.Config) {
 			v2.GET("/contracts/approved", contractHandler.GetApprovedContracts)
 			v2.PATCH("/contracts/:id/verify", contractHandler.VerifyContract)
 			v2.PATCH("/contracts/:id/finish", contractHandler.FinishContract)
+			v2.POST("/contracts/:id/extend", contractHandler.ExtendContract)
 			v2.GET("/residents", contractHandler.GetResidentsByRoom)
 			v2.GET("/dorm-applications", dormAppHandler.GetAllDormApplications)
 			v2.PATCH("/dorm-applications/:id/status", dormAppHandler.UpdateDormApplicationStatus)

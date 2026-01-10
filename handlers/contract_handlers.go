@@ -3,6 +3,7 @@ package handlers
 import (
 	"Backend_Dorm_PTIT/config"
 	"Backend_Dorm_PTIT/logger"
+	"Backend_Dorm_PTIT/models"
 	"Backend_Dorm_PTIT/repository"
 	"Backend_Dorm_PTIT/utils"
 	"context"
@@ -365,4 +366,93 @@ func (h *ContractHandler) FinishContract(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"ok": true, "message": "Hợp đồng đã kết thúc", "contract_id": contractID})
+}
+
+// PATCH /api/v1/protected/contracts/:id/extend (student)
+// Sinh viên yêu cầu gia hạn hợp đồng: tạo hợp đồng mới dựa trên hợp đồng đã hết hạn (expired), giữ nguyên dorm_application_id
+type extendContractRequest struct {
+	NewEndDate    string  `json:"new_end_date" binding:"required"`
+	AdditionalFee float64 `json:"additional_fee"`
+}
+
+func (h *ContractHandler) ExtendContract(c *gin.Context) {
+	claimsAny, exists := c.Get("user")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"ok": false, "error": "Unauthorized, missing user claims"})
+		return
+	}
+	claims := claimsAny.(jwt.MapClaims)
+	userID, ok := claims["user_id"].(string)
+	if !ok || userID == "" {
+		c.JSON(http.StatusUnauthorized, gin.H{"ok": false, "error": "Unauthorized, missing user_id"})
+		return
+	}
+	// Chỉ cho phép role student tự gia hạn hợp đồng của chính mình
+	rolesAny := claims["roles"]
+	var isStudent bool
+	if rolesAny != nil {
+		if roles, ok := rolesAny.([]interface{}); ok {
+			for _, r := range roles {
+				if roleStr, ok := r.(string); ok && roleStr == "student" {
+					isStudent = true
+					break
+				}
+			}
+		}
+	}
+	if !isStudent {
+		c.JSON(http.StatusUnauthorized, gin.H{"ok": false, "error": "Unauthorized, only students can extend contracts"})
+		return
+	}
+
+	contractID := c.Param("id")
+	var req extendContractRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request", "details": err.Error()})
+		return
+	}
+
+	newEnd, err := time.Parse(time.RFC3339, req.NewEndDate)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid new_end_date format, must be RFC3339", "details": err.Error()})
+		return
+	}
+
+	ctx := context.Background()
+	existingContract, err := h.Repo.GetContractByID(ctx, contractID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"ok": false, "error": "failed to get contract", "details": err.Error()})
+		return
+	}
+	if existingContract == nil {
+		c.JSON(http.StatusNotFound, gin.H{"ok": false, "error": "contract not found"})
+		return
+	}
+	// Đảm bảo sinh viên chỉ được gia hạn hợp đồng của chính mình
+	if existingContract.StudentID != userID {
+		c.JSON(http.StatusForbidden, gin.H{"ok": false, "error": "You can only extend your own contracts"})
+		return
+	}
+
+	// Chỉ cho phép gia hạn hợp đồng đã hết hạn (expired), tránh gia hạn hợp đồng đang còn hiệu lực
+	if existingContract.Status != models.ContractStatusExpired {
+		c.JSON(http.StatusBadRequest, gin.H{"ok": false, "error": "Only expired contracts can be extended"})
+		return
+	}
+	if existingContract.EndDate == nil {
+		c.JSON(http.StatusBadRequest, gin.H{"ok": false, "error": "Existing contract has no end_date to base extension on"})
+		return
+	}
+	if !newEnd.After(*existingContract.EndDate) {
+		c.JSON(http.StatusBadRequest, gin.H{"ok": false, "error": "new_end_date must be after current end_date"})
+		return
+	}
+
+	newContract, err := h.Repo.CreateContractFromExisting(ctx, existingContract, &newEnd, req.AdditionalFee)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"ok": false, "error": "failed to extend contract", "details": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusCreated, gin.H{"ok": true, "data": newContract})
 }

@@ -9,11 +9,11 @@ import (
 	"Backend_Dorm_PTIT/repository"
 	"fmt"
 
-	// "io"
-	"net/http"
-	// "net/url"
 	"crypto/sha256"
 	"encoding/json"
+	"io"
+	"net/http"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -26,8 +26,213 @@ type AuthHandler struct {
 	userRepo *repository.UserRepository
 }
 
+// MicrosoftOAuthRequest is the body sent from FE with Microsoft access_token
+type MicrosoftOAuthRequest struct {
+	AccessToken string `json:"access_token" binding:"required"`
+}
+
 func NewAuthHandler(cfg *config.Config, userRepo *repository.UserRepository) *AuthHandler {
 	return &AuthHandler{cfg: cfg, userRepo: userRepo}
+}
+
+// MicrosoftOAuthCallback handles Microsoft OAuth2 login via access_token from FE
+// FE gọi Microsoft trực tiếp để lấy access_token, sau đó gửi access_token cho BE
+// BE dùng access_token gọi Graph lấy profile, rồi login theo email
+func (h *AuthHandler) MicrosoftOAuthCallback(c *gin.Context) {
+	var req MicrosoftOAuthRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, models.ErrorResponse(http.StatusBadRequest, "invalid request: "+err.Error()))
+		return
+	}
+
+	ctx := c.Request.Context()
+	msAccessToken := req.AccessToken
+
+	// Call Microsoft Graph to get user profile
+	client := &http.Client{Timeout: 10 * time.Second}
+	profileReq, err := http.NewRequestWithContext(ctx, http.MethodGet, "https://graph.microsoft.com/v1.0/me", nil)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, models.ErrorResponse(http.StatusInternalServerError, "failed to create profile request: "+err.Error()))
+		return
+	}
+	profileReq.Header.Set("Authorization", "Bearer "+msAccessToken)
+	respProfile, err := client.Do(profileReq)
+	if err != nil {
+		c.JSON(http.StatusBadGateway, models.ErrorResponse(http.StatusBadGateway, "failed to call Microsoft Graph: "+err.Error()))
+		return
+	}
+	defer respProfile.Body.Close()
+
+	if respProfile.StatusCode < 200 || respProfile.StatusCode >= 300 {
+		bodyBytes, _ := io.ReadAll(respProfile.Body)
+		c.JSON(http.StatusBadGateway, models.ErrorResponse(http.StatusBadGateway, fmt.Sprintf("graph api error: %d - %s", respProfile.StatusCode, string(bodyBytes))))
+		return
+	}
+
+	var user map[string]interface{}
+	if err := json.NewDecoder(respProfile.Body).Decode(&user); err != nil {
+		c.JSON(http.StatusBadGateway, models.ErrorResponse(http.StatusBadGateway, "failed to decode graph user: "+err.Error()))
+		return
+	}
+
+	displayName, _ := user["displayName"].(string)
+	email := ""
+	if m, ok := user["mail"].(string); ok && m != "" {
+		email = m
+	} else if upn, ok := user["userPrincipalName"].(string); ok {
+		email = upn
+	}
+	if email == "" {
+		c.JSON(http.StatusBadGateway, models.ErrorResponse(http.StatusBadGateway, "could not determine email from microsoft profile"))
+		return
+	}
+
+	// Chỉ chấp nhận email sinh viên PTIT
+	lowerEmail := strings.ToLower(email)
+	if !strings.HasSuffix(lowerEmail, "@stu.ptit.edu.vn") {
+		c.JSON(http.StatusForbidden, models.ErrorResponse(http.StatusForbidden, "email must be a PTIT student email (@stu.ptit.edu.vn)"))
+		return
+	}
+
+	// Từ đây coi như mật khẩu đã hợp lệ, tiến hành login theo email
+	config := h.cfg
+	jSecret := config.JWT.Secret
+	if jSecret == "" {
+		c.JSON(http.StatusInternalServerError, models.ErrorResponse(http.StatusInternalServerError, "jwt secret not configured"))
+		return
+	}
+
+	// Tìm user theo email
+	userRecord, err := h.userRepo.GetByEmail(ctx, email)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, models.ErrorResponse(http.StatusInternalServerError, "failed to get user by email: "+err.Error()))
+		return
+	}
+
+	var userInfo models.LoginUserInfo
+	// Helper check role
+	hasRole := func(roles []string, name string) bool {
+		for _, r := range roles {
+			if r == name {
+				return true
+			}
+		}
+		return false
+	}
+
+	if userRecord == nil {
+		// Chưa tồn tại user -> tạo user mới role guest
+		newID := uuid.NewString()
+		username := strings.SplitN(lowerEmail, "@", 2)[0]
+		now := time.Now()
+		newUser := &models.User{
+			ID:           newID,
+			Email:        email,
+			Username:     username,
+			PasswordHash: "", // không dùng password cho OAuth
+			Status:       "active",
+			CreatedAt:    now,
+			UpdatedAt:    now,
+		}
+		if err := h.userRepo.Create(ctx, newUser); err != nil {
+			c.JSON(http.StatusInternalServerError, models.ErrorResponse(http.StatusInternalServerError, "failed to create user: "+err.Error()))
+			return
+		}
+		if err := h.userRepo.SetUserRoleByName(ctx, newID, "guest"); err != nil {
+			c.JSON(http.StatusInternalServerError, models.ErrorResponse(http.StatusInternalServerError, "failed to assign guest role: "+err.Error()))
+			return
+		}
+		userInfo = models.LoginUserInfo{
+			UserID:      newID,
+			Email:       email,
+			Username:    username,
+			DisplayName: displayName,
+			Avatar:      "",
+			Roles:       []string{"guest"},
+		}
+	} else {
+		// User đã tồn tại: quyết định role theo DB
+		roles, err := h.userRepo.GetRolesByUserID(ctx, userRecord.ID)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, models.ErrorResponse(http.StatusInternalServerError, "failed to get user roles: "+err.Error()))
+			return
+		}
+
+		// Ưu tiên student, sau đó guest; các role khác không cho đăng nhập bằng Microsoft
+		var loginRoles []string
+		if hasRole(roles, "student") {
+			loginRoles = []string{"student"}
+		} else if hasRole(roles, "guest") || len(roles) == 0 {
+			loginRoles = []string{"guest"}
+		} else {
+			c.JSON(http.StatusForbidden, models.ErrorResponse(http.StatusForbidden, "account role is not allowed for Microsoft login"))
+			return
+		}
+
+		// Thử lấy thông tin hiển thị từ hệ thống nếu có, nếu lỗi thì fallback
+		if uInfo, err := h.userRepo.GetUserInfo(ctx, userRecord.Username); err == nil {
+			userInfo = models.LoginUserInfo{
+				UserID:      uInfo.UserID,
+				Email:       uInfo.Email,
+				Username:    uInfo.Username,
+				DisplayName: uInfo.DisplayName,
+				Avatar:      uInfo.Avatar,
+				Roles:       loginRoles,
+			}
+		} else {
+			userInfo = models.LoginUserInfo{
+				UserID:      userRecord.ID,
+				Email:       userRecord.Email,
+				Username:    userRecord.Username,
+				DisplayName: displayName,
+				Avatar:      "",
+				Roles:       loginRoles,
+			}
+		}
+	}
+
+	// Sinh cặp access/refresh token giống luồng login thường
+	tokenID := uuid.NewString()
+	accessClaims := jwt.MapClaims{
+		"token_id": tokenID,
+		"user_id":  userInfo.UserID,
+		"roles":    userInfo.Roles,
+		"type":     "access",
+		"exp":      time.Now().Add(time.Duration(config.JWT.Access_Exp) * time.Second).Unix(),
+	}
+
+	accessTokenJWT := jwt.NewWithClaims(jwt.SigningMethodHS256, accessClaims)
+	signedAccess, err := accessTokenJWT.SignedString([]byte(jSecret))
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, models.ErrorResponse(http.StatusInternalServerError, "Failed to sign access token: "+err.Error()))
+		return
+	}
+
+	refreshClaims := jwt.MapClaims{
+		"token_id": tokenID,
+		"user_id":  userInfo.UserID,
+		"roles":    userInfo.Roles,
+		"type":     "refresh",
+		"exp":      time.Now().Add(time.Duration(config.JWT.Refresh_Exp) * time.Second).Unix(),
+	}
+	refreshToken := jwt.NewWithClaims(jwt.SigningMethodHS256, refreshClaims)
+	signedRefresh, err := refreshToken.SignedString([]byte(jSecret))
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, models.ErrorResponse(http.StatusInternalServerError, "Failed to sign refresh token: "+err.Error()))
+		return
+	}
+
+	tokenTTL := time.Duration(config.JWT.Refresh_Exp) * time.Second
+	if err := database.Set(tokenID, userInfo.UserID, tokenTTL); err != nil {
+		c.JSON(http.StatusInternalServerError, models.ErrorResponse(http.StatusInternalServerError, "Failed to store token: "+err.Error()))
+		return
+	}
+
+	c.JSON(http.StatusOK, models.LoginResponse{
+		AccessToken:  signedAccess,
+		RefreshToken: signedRefresh,
+		User:         userInfo,
+	})
 }
 
 // LogoutHandler godoc
@@ -202,7 +407,7 @@ func (h *AuthHandler) LoginHandler(c *gin.Context) {
 	if status == "inactive" {
 		c.JSON(http.StatusUnauthorized, models.ErrorResponse(http.StatusUnauthorized, "user account is inactive"))
 		return
-	}	
+	}
 
 	// Lấy user info qua email
 	user, err := h.userRepo.GetUserInfo(c.Request.Context(), req.Username)
@@ -292,12 +497,9 @@ func (h *AuthHandler) RefreshHandler(c *gin.Context) {
 		return
 	}
 
-
 	reqData, _ := json.Marshal(req)
 	hashRequest := fmt.Sprintf("refresh_req:%x", sha256.Sum256(reqData))
 	hashLockKey := fmt.Sprintf("refresh_lock:%x", sha256.Sum256(reqData))
-
-
 
 	lockKey := hashLockKey
 	maxRetry := 25
@@ -319,7 +521,7 @@ func (h *AuthHandler) RefreshHandler(c *gin.Context) {
 		c.JSON(http.StatusTooManyRequests, models.ErrorResponse(http.StatusTooManyRequests, "Server busy, please retry"))
 		return
 	}
-   
+
 	if ok, cachedResp, err := database.GetCacheRequest(hashRequest); err == nil && ok {
 		if err := database.DeleteLockKey(lockKey); err != nil {
 			logger.Error().Err(err).Str("lockKey", lockKey).Msg("Failed to release lock")

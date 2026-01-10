@@ -135,6 +135,13 @@ func (r *DormApplicationRepository) CreateContract(ctx context.Context, contract
 	return err
 }
 
+// Xóa tất cả người bảo lãnh của sinh viên
+func (r *DormApplicationRepository) DeleteGuardiansByUserID(ctx context.Context, studentID string) error {
+	query := `DELETE FROM parents WHERE student_id = $1`
+	_, err := r.DB.ExecContext(ctx, query, studentID)
+	return err
+}
+
 // Thêm người bảo lãnh (phụ huynh) cho sinh viên, type = 'Bố', các trường còn lại null nếu không có
 func (r *DormApplicationRepository) AddGuardianToStudent(ctx context.Context, studentID string, guardianName string, guardianPhone string) error {
 	if guardianName == "" || guardianPhone == "" {

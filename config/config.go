@@ -10,17 +10,17 @@ import (
 
 // Config represents the application configuration
 type Config struct {
-	Server     ServerConfig     `mapstructure:"server"`
-	Database   DatabaseConfig   `mapstructure:"database"`
-	CORS       CORSConfig       `mapstructure:"cors"`
-	JWT        JWTConfig        `mapstructure:"jwt"`
-	Redis      RedisConfig      `mapstructure:"redis"`
-	MailGoogle MailGoogleConfig `mapstructure:"mail_google"`
-	Logging    logger.LogConfig `mapstructure:"logging"`
-	Cloudinary CloudinaryConfig `mapstructure:"cloudinary"`
-	WebSocket  WebSocketConfig  `mapstructure:"websocket"`
-	APIKey     APIKeyConfig     `mapstructure:"api_key"`
-	Chatbot    ChatbotConfig    `mapstructure:"chatbot"`
+	Server     ServerConfig         `mapstructure:"server"`
+	Database   DatabaseConfig       `mapstructure:"database"`
+	CORS       CORSConfig           `mapstructure:"cors"`
+	JWT        JWTConfig            `mapstructure:"jwt"`
+	Redis      RedisConfig          `mapstructure:"redis"`
+	MailGoogle MailGoogleConfig     `mapstructure:"mail_google"`
+	Logging    logger.LogConfig     `mapstructure:"logging"`
+	Cloudinary CloudinaryConfig     `mapstructure:"cloudinary"`
+	WebSocket  WebSocketConfig      `mapstructure:"websocket"`
+	APIKey     APIKeyConfig         `mapstructure:"api_key"`
+	Chatbot    ChatbotConfig        `mapstructure:"chatbot"`
 }
 
 type ServerConfig struct {
@@ -84,6 +84,7 @@ type ChatbotConfig struct {
 	BaseURL string `mapstructure:"base_url"` // e.g. https://chatbot.example.com
 }
 
+
 func LoadConfig(cfgFile string) (*Config, error) {
 	// Use specific config file if provided
 	viper.SetConfigFile(cfgFile)
@@ -108,6 +109,9 @@ func LoadConfig(cfgFile string) (*Config, error) {
 }
 
 func (c *DatabaseConfig) GetDSN() string {
-	return fmt.Sprintf("host=%s port=%s user=%s password=%s dbname=%s sslmode=%s",
+	// Add binary_parameters=yes to force lib/pq to use the simple query protocol
+	// This avoids issues with unnamed prepared statements when going through
+	// connection poolers like PgBouncer/Neon ("bind message has X result formats...").
+	return fmt.Sprintf("host=%s port=%s user=%s password=%s dbname=%s sslmode=%s binary_parameters=yes",
 		c.Host, c.Port, c.UserName, c.Password, c.Name, c.SSLMode)
 }

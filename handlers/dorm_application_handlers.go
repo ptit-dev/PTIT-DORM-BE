@@ -304,7 +304,8 @@ func (h *DormApplicationHandler) UpdateDormApplicationStatus(c *gin.Context) {
 			emailBody = "Chào bạn,\n\nTài khoản của bạn đã được kích hoạt lên quyền sinh viên nội trú.\nVui lòng đăng nhập để xác nhận hợp đồng và thanh toán.\n\nTrân trọng."
 		}
 
-		// Thêm người bảo lãnh nếu có
+		// Xóa người bảo lãnh cũ rồi thêm người bảo lãnh mới
+		_ = h.Repo.DeleteGuardiansByUserID(context.Background(), userID)
 		_ = h.Repo.AddGuardianToStudent(context.Background(), userID, app.GuardianName, app.GuardianPhone)
 
 		// Tạo hợp đồng tạm thời

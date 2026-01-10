@@ -4,6 +4,9 @@ import (
 	"Backend_Dorm_PTIT/models"
 	"context"
 	"database/sql"
+	"time"
+
+	"github.com/google/uuid"
 )
 
 type ContractRepository struct {
@@ -31,11 +34,11 @@ func (r *ContractRepository) GetContractByStudentID(ctx context.Context, student
 	for rows.Next() {
 		var contract models.Contract
 		var dormApp models.DormApplication
-		// Contract fields
+		// Contract + DormApplication fields
 		err := rows.Scan(
 			&contract.ID,
 			&contract.StudentID,
-			&dormApp.ID, // contract.DormApplicationID (not used directly)
+			&dormApp.ID, // dorm_application_id
 			&contract.Room,
 			&contract.Status,
 			&contract.ImageBill,
@@ -284,4 +287,85 @@ func (r *ContractRepository) GetContractByID(ctx context.Context, contractID str
 		return nil, err
 	}
 	return &contract, nil
+}
+
+// monthsBetween tính số tháng giữa 2 mốc thời gian (theo year-month)
+func monthsBetween(start, end time.Time) int {
+	y1, m1, _ := start.Date()
+	y2, m2, _ := end.Date()
+	months := (y2-y1)*12 + int(m2-m1)
+	if months < 0 {
+		return 0
+	}
+	return months
+}
+
+// CreateContractFromExisting tạo hợp đồng mới từ hợp đồng đã được duyệt trước đó
+// Giữ nguyên student_id, dorm_application_id, room, monthly_fee và tạo khoảng thời gian mới
+func (r *ContractRepository) CreateContractFromExisting(ctx context.Context, existingContract *models.Contract, newEndDate *time.Time, additionalFee float64) (*models.Contract, error) {
+	if existingContract == nil || newEndDate == nil {
+		return nil, sql.ErrNoRows
+	}
+
+	// Xác định ngày bắt đầu hợp đồng mới: mặc định từ end_date của hợp đồng cũ
+	startDate := time.Now()
+	if existingContract.EndDate != nil {
+		startDate = *existingContract.EndDate
+	}
+
+	// Tính số tháng gia hạn và tổng tiền
+	months := monthsBetween(startDate, *newEndDate)
+	totalAmount := existingContract.MonthlyFee*float64(months) + additionalFee
+
+	newID := uuid.New()
+	now := time.Now()
+	note := "Gia hạn từ hợp đồng " + existingContract.ID.String()
+	if existingContract.Note != "" {
+		note = existingContract.Note + " | " + note
+	}
+
+	// Chèn bản ghi hợp đồng mới, giữ nguyên dorm_application_id từ hợp đồng cũ
+	query := `INSERT INTO contracts (
+		id, student_id, dorm_application_id, room, status, image_bill, monthly_fee, total_amount,
+		start_date, end_date, status_payment, created_at, updated_at, note
+	) VALUES (
+		$1, $2, (SELECT dorm_application_id FROM contracts WHERE id = $3), $4, $5, $6, $7, $8,
+		$9, $10, $11, $12, $13, $14
+	) RETURNING id, student_id, room, status, monthly_fee, total_amount, start_date, end_date, status_payment, created_at, updated_at, note`
+
+	var newContract models.Contract
+	err := r.DB.QueryRowContext(ctx, query,
+		newID,
+		existingContract.StudentID,
+		existingContract.ID,
+		existingContract.Room,
+		models.ContractStatusTemporary,
+		sql.NullString{Valid: false},
+		existingContract.MonthlyFee,
+		totalAmount,
+		startDate,
+		newEndDate,
+		models.PaymentStatusUnpaid,
+		now,
+		now,
+		note,
+	).Scan(
+		&newContract.ID,
+		&newContract.StudentID,
+		&newContract.Room,
+		&newContract.Status,
+		&newContract.MonthlyFee,
+		&newContract.TotalAmount,
+		&newContract.StartDate,
+		&newContract.EndDate,
+		&newContract.StatusPayment,
+		&newContract.CreatedAt,
+		&newContract.UpdatedAt,
+		&newContract.Note,
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	return &newContract, nil
 }

@@ -6,7 +6,6 @@ import (
 	"Backend_Dorm_PTIT/logger"
 	"Backend_Dorm_PTIT/models"
 	"Backend_Dorm_PTIT/repository"
-	"context"
 	"crypto/rand"
 	"encoding/hex"
 	"fmt"
@@ -22,13 +21,11 @@ func NewMailHandler(cfg *config.Config, repo *repository.UserRepository) *MailHa
 	return &MailHandler{cfg: cfg, repo: repo}
 }
 
-
 type OTPVerifyRequest struct {
 	Action string `json:"action" binding:"required"`
 	Email  string `json:"email" binding:"required,email"`
 	OTP    string `json:"otp" binding:"required"`
 }
-
 
 func (h *MailHandler) VerifyOTPHandler(c *gin.Context) {
 	var req OTPVerifyRequest
@@ -51,7 +48,6 @@ func (h *MailHandler) VerifyOTPHandler(c *gin.Context) {
 
 	_ = database.Delete(key)
 
-
 	tokenBytes := make([]byte, 32)
 	_, _ = rand.Read(tokenBytes)
 	token := hex.EncodeToString(tokenBytes)
@@ -72,7 +68,6 @@ type MailHandler struct {
 	repo *repository.UserRepository
 }
 
-
 type OTPRequest struct {
 	Action string `json:"action" binding:"required"`
 	Email  string `json:"email" binding:"required,email"`
@@ -87,15 +82,31 @@ func (h *MailHandler) SendOTPEmailHandler(c *gin.Context) {
 		return
 	}
 
+	ctx := c.Request.Context()
 	// Kiểm tra email đã tồn tại chưa bằng GetByEmail
-	user, err := h.repo.GetByEmail(context.Background(), req.Email)
+	user, err := h.repo.GetByEmail(ctx, req.Email)
 	if err != nil {
 		c.JSON(500, models.ErrorResponse(500, "internal error: "+err.Error()))
 		return
 	}
 	if user != nil {
-		c.JSON(400, models.ErrorResponse(400, "email already exists"))
-		return
+		// Nếu email đã tồn tại, chỉ cho phép nếu user có role "guest"
+		roles, err := h.repo.GetRolesByUserID(ctx, user.ID)
+		if err != nil {
+			c.JSON(500, models.ErrorResponse(500, "internal error: "+err.Error()))
+			return
+		}
+		hasGuest := false
+		for _, r := range roles {
+			if r == "guest" {
+				hasGuest = true
+				break
+			}
+		}
+		if !hasGuest {
+			c.JSON(400, models.ErrorResponse(400, "email already exists"))
+			return
+		}
 	}
 
 	// Sinh OTP 6 số
